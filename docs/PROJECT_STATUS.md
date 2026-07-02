@@ -210,3 +210,37 @@ npm run dev
 npm run build
 npm test
 ```
+
+## Project structure preparation
+
+Дата подготовки структуры: 2026-07-02
+
+### Папки, которые уже существовали
+
+- `docs/` - документация проекта, PDF-источники, Markdown-конвертации, статусные документы.
+- `tools/` - вспомогательные инструменты проекта, включая конвертацию PDF-документов в Markdown.
+
+### Папки, которые были созданы
+
+- `client/` - будущий frontend workspace для React + Vite + TypeScript prototype. Создан только `README.md`, игровой код не создавался.
+- `server/` - будущий backend workspace. Создан только `README.md`; backend не добавлялся.
+- `shared/` - будущий workspace для общих типов, схем, констант и утилит. Создан только `README.md`.
+- `data/` - будущий workspace для data-driven контента: items, skills, locations, NPCs, factions, quests, events, lore. Создан только `README.md`.
+- `assets/` - будущий workspace для визуальных и аудио-ресурсов. Создан только `README.md`.
+
+### Что можно делать следующим шагом
+
+Следующий безопасный шаг - создать минимальный Phase 1 frontend prototype в `client/` по технической архитектуре:
+
+- React + Vite + TypeScript scaffold;
+- базовая структура `client/src/`;
+- main menu;
+- character creation screen;
+- mock world map;
+- event scene shell;
+- dialogue input;
+- thought panel;
+- local mock data;
+- `localStorage` save.
+
+Backend, AI integration, production database и игровые системы Phase 2 пока не добавлять.
