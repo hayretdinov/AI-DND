@@ -19,22 +19,17 @@ AI-DND/
         └── convert_docs_pdf_to_md.py
 ```
 
-На текущий момент не найдены:
+На текущий момент в корне все базовые папки подготовлены. Не найдены:
 
-- `client/`
-- `server/`
-- `shared/`
-- `data/`
-- `assets/`
 - `README.md`
-- `package.json`
+- корневой `package.json`
 - `.git`
 
-То есть проект сейчас находится на стадии подготовленной документационной базы. Игровое приложение, frontend, backend, общие типы, игровые данные и тестовая инфраструктура еще не созданы.
+То есть проект сейчас находится на стадии подготовленной документационной базы и минимального frontend skeleton. Backend, production database, AI integration, полноценные игровые системы, общие типы, игровые данные и тестовая инфраструктура еще не созданы.
 
 ## 2. Найденные документы
 
-Всего найдено 30 Markdown-файлов в `docs`, включая отчет о конвертации PDF.
+Всего найдено 32 Markdown-файла в `docs`, включая отчет о конвертации PDF и статусные документы проекта.
 
 ### Technical
 
@@ -80,6 +75,8 @@ AI-DND/
 ### Conversion
 
 - `docs/PDF_CONVERSION_REPORT.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/PROJECT_BIBLE.md`
 
 Примечание: в документах внутри PDF упоминаются имена вроде `CODEX_RULES.md`, `TECHNICAL_ARCHITECTURE.md`, `00_ProjectVision.md`, `02_Gameplay.md`, `UI_UX_SYSTEM.md`, `Thought_System.md`. Фактически после конвертации эти документы существуют под PDF-именами, перечисленными выше.
 
@@ -119,11 +116,10 @@ AI-DND/
 
 Сейчас не хватает:
 
-- React + Vite + TypeScript frontend в `client/`;
-- базового запуска проекта через `package.json`;
-- главного меню;
-- экрана создания персонажа;
-- экрана глобальной карты;
+- развития текущего React + Vite + TypeScript skeleton в полноценный playable prototype;
+- полноценного игрового flow поверх созданных placeholder-экранов;
+- завершенного экрана создания персонажа;
+- рабочей глобальной карты;
 - простого travel prototype на mock data;
 - event scene screen;
 - свободного dialogue/input panel;
@@ -131,8 +127,8 @@ AI-DND/
 - базовых status/inventory/journal mockups;
 - локальных mock data для locations, events, NPC, items, player;
 - localStorage save/load;
-- минимальной навигации между сценами;
-- базового визуального стиля UI согласно `AI-DND UI-UX System.md`;
+- расширенной навигации между сценами;
+- полировки базового визуального стиля UI согласно `AI-DND UI-UX System.md`;
 - начальных pure systems для следующего этапа: `DiceSystem`, mock `IntentSystem`, `RuleValidator`, `TravelSystem`;
 - тестовой инфраструктуры для pure systems.
 
@@ -174,7 +170,7 @@ AI-DND/
 
 ## 6. Команды для проверки проекта
 
-Текущее состояние проекта документационное. `package.json` пока отсутствует, поэтому `npm install`, `npm run dev`, `npm test` сейчас запускать нечего.
+Текущее состояние проекта: подготовлена документационная база и создан минимальный frontend skeleton в `client/`. Корневой `package.json` пока отсутствует; frontend-команды выполняются из папки `client/`.
 
 Проверить список Markdown-документов:
 
@@ -222,7 +218,7 @@ npm test
 
 ### Папки, которые были созданы
 
-- `client/` - будущий frontend workspace для React + Vite + TypeScript prototype. Создан только `README.md`, игровой код не создавался.
+- `client/` - frontend workspace для React + Vite + TypeScript prototype. Изначально был создан только `README.md`; затем добавлен минимальный frontend skeleton, описанный в разделе `Frontend skeleton`.
 - `server/` - будущий backend workspace. Создан только `README.md`; backend не добавлялся.
 - `shared/` - будущий workspace для общих типов, схем, констант и утилит. Создан только `README.md`.
 - `data/` - будущий workspace для data-driven контента: items, skills, locations, NPCs, factions, quests, events, lore. Создан только `README.md`.
@@ -230,13 +226,10 @@ npm test
 
 ### Что можно делать следующим шагом
 
-Следующий безопасный шаг - создать минимальный Phase 1 frontend prototype в `client/` по технической архитектуре:
+Следующий безопасный шаг - развить минимальный Phase 1 frontend skeleton в `client/` по технической архитектуре:
 
-- React + Vite + TypeScript scaffold;
-- базовая структура `client/src/`;
-- main menu;
-- character creation screen;
-- mock world map;
+- character creation flow;
+- mock world map interactions;
 - event scene shell;
 - dialogue input;
 - thought panel;
@@ -244,3 +237,88 @@ npm test
 - `localStorage` save.
 
 Backend, AI integration, production database и игровые системы Phase 2 пока не добавлять.
+
+## Frontend skeleton
+
+Дата создания frontend skeleton: 2026-07-02
+
+### Что создано
+
+В `client/` создан минимальный React + Vite + TypeScript skeleton для Phase 1 frontend prototype:
+
+- `package.json`
+- `package-lock.json`
+- `vite.config.ts`
+- `tsconfig.json`
+- `tsconfig.node.json`
+- `index.html`
+- `src/main.tsx`
+- `src/App.tsx`
+- `src/styles/global.css`
+
+Созданы папки:
+
+- `src/screens/`
+- `src/components/`
+- `src/systems/`
+- `src/types/`
+- `src/data/`
+- `src/state/`
+- `src/assets/`
+
+Созданы placeholder-экраны:
+
+- `MainMenu`
+- `CharacterCreation`
+- `WorldMap`
+- `EventScene`
+- `Inventory`
+- `Journal`
+- `Settings`
+
+### Что реализовано
+
+- `App.tsx` переключает экраны через локальное состояние без роутера.
+- `MainMenu` показывает название `AI-DND` и кнопки `New Game`, `Continue`, `Settings`.
+- `New Game` открывает `CharacterCreation`.
+- `Continue` открывает `WorldMap`.
+- `Settings` открывает `Settings`.
+- Остальные экраны имеют кнопку `Back to Menu`.
+- Добавлены базовые dark fantasy стили: темный фон, пергаментные панели, деревянно-железные кнопки, читаемый текст.
+
+### Что не добавлялось
+
+- Backend не добавлялся.
+- AI integration не добавлялась.
+- База данных не добавлялась.
+- Боевая система не добавлялась.
+- LM Studio не подключался.
+- Игровая логика не создавалась.
+- UI-библиотеки не использовались.
+
+### Проверка
+
+В `client/` выполнены:
+
+```powershell
+npm install
+npm run build
+npm run dev -- --host 127.0.0.1
+```
+
+Результат:
+
+- `npm install` успешно установил зависимости.
+- `npm run build` успешно собрал production build.
+- `npm run dev -- --host 127.0.0.1` успешно поднял Vite dev server на `http://127.0.0.1:5173/`; после проверки процесс был остановлен.
+
+Примечание: `npm install` сообщил о 2 audit vulnerabilities в установленных npm-пакетах. Автоматическое исправление через `npm audit fix --force` не выполнялось, чтобы не менять зависимости с breaking changes без отдельной задачи.
+
+### Следующий безопасный шаг
+
+Следующий безопасный шаг - развить Phase 1 frontend prototype без backend и AI:
+
+- уточнить визуальный layout `MainMenu`;
+- добавить простой placeholder flow `CharacterCreation -> WorldMap`;
+- подготовить mock data только для экранов;
+- добавить `localStorage` save/load только после согласования минимальной структуры save.
