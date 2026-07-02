@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FantasyButton } from "./FantasyButton";
+import { t } from "../i18n/i18n";
 
 type ScreenPanelProps = {
   title: string;
@@ -12,7 +13,7 @@ export function ScreenPanel({ title, subtitle, children, onBackToMenu }: ScreenP
   return (
     <section className="screen-panel">
       <div className="screen-panel__header">
-        <p className="screen-panel__eyebrow">AI-DND Prototype</p>
+        <p className="screen-panel__eyebrow">{t("appEyebrow")}</p>
         <h1>{title}</h1>
         <p>{subtitle}</p>
       </div>
@@ -21,7 +22,7 @@ export function ScreenPanel({ title, subtitle, children, onBackToMenu }: ScreenP
 
       {onBackToMenu ? (
         <div className="screen-panel__footer">
-          <FantasyButton onClick={onBackToMenu}>Back to Menu</FantasyButton>
+          <FantasyButton onClick={onBackToMenu}>{t("backToMenu")}</FantasyButton>
         </div>
       ) : null}
     </section>

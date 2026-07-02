@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { FantasyButton } from "../components/FantasyButton";
 import { ScreenPanel } from "../components/ScreenPanel";
+import { t, type TranslationKey } from "../i18n/i18n";
 import { saveGame } from "../systems/save/saveSystem";
 import type { Attributes, DerivedStats, PlayerOrigin } from "../types/player";
 
@@ -19,6 +20,21 @@ const ATTRIBUTE_NAMES: Array<keyof Attributes> = [
 ];
 
 const ORIGINS: PlayerOrigin[] = ["prisoner", "deserter", "hunter", "scholar", "outcast"];
+const ATTRIBUTE_LABEL_KEYS: Record<keyof Attributes, TranslationKey> = {
+  strength: "strength",
+  dexterity: "dexterity",
+  constitution: "constitution",
+  intelligence: "intelligence",
+  wisdom: "wisdom",
+  charisma: "charisma",
+};
+const ORIGIN_LABEL_KEYS: Record<PlayerOrigin, TranslationKey> = {
+  prisoner: "originPrisoner",
+  deserter: "originDeserter",
+  hunter: "originHunter",
+  scholar: "originScholar",
+  outcast: "originOutcast",
+};
 const BASE_ATTRIBUTE_VALUE = 8;
 const MAX_ATTRIBUTE_VALUE = 16;
 const TOTAL_POINTS = 12;
@@ -50,10 +66,6 @@ function createCharacterId() {
   }
 
   return `player-${Date.now()}`;
-}
-
-function formatAttributeName(attribute: keyof Attributes) {
-  return attribute.charAt(0).toUpperCase() + attribute.slice(1);
 }
 
 export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCreationProps) {
@@ -107,24 +119,24 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
 
   return (
     <ScreenPanel
-      title="Character Creation"
-      subtitle="Name the one who wakes on the edge of Ashen Valley."
+      title={t("characterCreationTitle")}
+      subtitle={t("characterCreationSubtitle")}
       onBackToMenu={onBackToMenu}
     >
       <div className="character-form">
         <label className="form-field" htmlFor="character-name">
-          <span>Character name</span>
+          <span>{t("characterName")}</span>
           <input
             id="character-name"
             value={characterName}
             onChange={(event) => setCharacterName(event.target.value)}
             maxLength={32}
-            placeholder="Name"
+            placeholder={t("characterNamePlaceholder")}
           />
         </label>
 
         <fieldset className="origin-field">
-          <legend>Origin</legend>
+          <legend>{t("origin")}</legend>
           <div className="origin-grid">
             {ORIGINS.map((originOption) => (
               <label
@@ -138,7 +150,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                   checked={origin === originOption}
                   onChange={() => setOrigin(originOption)}
                 />
-                <span>{originOption}</span>
+                <span>{t(ORIGIN_LABEL_KEYS[originOption])}</span>
               </label>
             ))}
           </div>
@@ -146,17 +158,19 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
 
         <section className="attribute-section" aria-labelledby="attribute-heading">
           <div className="section-heading">
-            <h2 id="attribute-heading">Attributes</h2>
-            <p>Remaining points: {remainingPoints}</p>
+            <h2 id="attribute-heading">{t("attributes")}</h2>
+            <p>
+              {t("remainingPoints")}: {remainingPoints}
+            </p>
           </div>
 
           <div className="attribute-list">
             {ATTRIBUTE_NAMES.map((attribute) => (
               <div className="attribute-row" key={attribute}>
                 <div>
-                  <span className="attribute-row__name">{formatAttributeName(attribute)}</span>
+                  <span className="attribute-row__name">{t(ATTRIBUTE_LABEL_KEYS[attribute])}</span>
                   <span className="attribute-row__modifier">
-                    Modifier {getModifier(attributes[attribute]) >= 0 ? "+" : ""}
+                    {t("modifier")} {getModifier(attributes[attribute]) >= 0 ? "+" : ""}
                     {getModifier(attributes[attribute])}
                   </span>
                 </div>
@@ -166,7 +180,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                     type="button"
                     onClick={() => changeAttribute(attribute, -1)}
                     disabled={attributes[attribute] <= BASE_ATTRIBUTE_VALUE}
-                    aria-label={`Decrease ${attribute}`}
+                    aria-label={`${t("decreaseAttribute")}: ${t(ATTRIBUTE_LABEL_KEYS[attribute])}`}
                   >
                     -
                   </FantasyButton>
@@ -175,7 +189,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                     type="button"
                     onClick={() => changeAttribute(attribute, 1)}
                     disabled={remainingPoints <= 0 || attributes[attribute] >= MAX_ATTRIBUTE_VALUE}
-                    aria-label={`Increase ${attribute}`}
+                    aria-label={`${t("increaseAttribute")}: ${t(ATTRIBUTE_LABEL_KEYS[attribute])}`}
                   >
                     +
                   </FantasyButton>
@@ -185,17 +199,17 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
           </div>
         </section>
 
-        <section className="derived-stats" aria-label="Starting parameters">
+        <section className="derived-stats" aria-label={t("startingParameters")}>
           <div className="stat-pill">
-            <span>Health</span>
+            <span>{t("health")}</span>
             <strong>{derivedStats.health}</strong>
           </div>
           <div className="stat-pill">
-            <span>Stamina</span>
+            <span>{t("stamina")}</span>
             <strong>{derivedStats.stamina}</strong>
           </div>
           <div className="stat-pill">
-            <span>Armor Class</span>
+            <span>{t("armorClass")}</span>
             <strong>{derivedStats.armorClass}</strong>
           </div>
         </section>
@@ -206,7 +220,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
           onClick={startJourney}
           disabled={!canStartJourney}
         >
-          Start Journey
+          {t("startJourney")}
         </FantasyButton>
       </div>
     </ScreenPanel>

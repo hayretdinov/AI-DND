@@ -1,4 +1,5 @@
 import { ScreenPanel } from "../components/ScreenPanel";
+import { t } from "../i18n/i18n";
 
 type InventoryProps = {
   onBackToMenu: () => void;
@@ -7,8 +8,8 @@ type InventoryProps = {
 export function Inventory({ onBackToMenu }: InventoryProps) {
   return (
     <ScreenPanel
-      title="Inventory"
-      subtitle="A placeholder for physical possessions, equipment, condition, weight, and ownership."
+      title={t("inventoryTitle")}
+      subtitle={t("inventorySubtitle")}
       onBackToMenu={onBackToMenu}
     />
   );

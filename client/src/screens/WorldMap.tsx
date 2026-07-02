@@ -1,6 +1,8 @@
 import { ScreenPanel } from "../components/ScreenPanel";
 import { FantasyButton } from "../components/FantasyButton";
+import { t, type TranslationKey } from "../i18n/i18n";
 import { loadGame } from "../systems/save/saveSystem";
+import type { PlayerOrigin } from "../types/player";
 
 type WorldMapProps = {
   saveVersion: number;
@@ -8,6 +10,14 @@ type WorldMapProps = {
   onOpenInventory: () => void;
   onOpenJournal: () => void;
   onBackToMenu: () => void;
+};
+
+const ORIGIN_LABEL_KEYS: Record<PlayerOrigin, TranslationKey> = {
+  prisoner: "originPrisoner",
+  deserter: "originDeserter",
+  hunter: "originHunter",
+  scholar: "originScholar",
+  outcast: "originOutcast",
 };
 
 export function WorldMap({
@@ -21,45 +31,45 @@ export function WorldMap({
 
   return (
     <ScreenPanel
-      title="World Map"
-      subtitle="A parchment placeholder for routes, settlements, roads, and unknown dangers."
+      title={t("worldMapTitle")}
+      subtitle={t("worldMapSubtitle")}
       onBackToMenu={onBackToMenu}
     >
       {save ? (
         <>
           <div className="world-summary">
-            <p>Traveler</p>
+            <p>{t("traveler")}</p>
             <h2>{save.player.name}</h2>
             <dl>
               <div>
-                <dt>Origin</dt>
-                <dd>{save.player.origin}</dd>
+                <dt>{t("origin")}</dt>
+                <dd>{t(ORIGIN_LABEL_KEYS[save.player.origin])}</dd>
               </div>
               <div>
-                <dt>Health</dt>
+                <dt>{t("health")}</dt>
                 <dd>{save.player.derivedStats.health}</dd>
               </div>
               <div>
-                <dt>Stamina</dt>
+                <dt>{t("stamina")}</dt>
                 <dd>{save.player.derivedStats.stamina}</dd>
               </div>
               <div>
-                <dt>Armor Class</dt>
+                <dt>{t("armorClass")}</dt>
                 <dd>{save.player.derivedStats.armorClass}</dd>
               </div>
             </dl>
           </div>
 
           <div className="action-row">
-            <FantasyButton onClick={onOpenEvent}>Open Event Scene</FantasyButton>
-            <FantasyButton onClick={onOpenInventory}>Inventory</FantasyButton>
-            <FantasyButton onClick={onOpenJournal}>Journal</FantasyButton>
+            <FantasyButton onClick={onOpenEvent}>{t("openEventScene")}</FantasyButton>
+            <FantasyButton onClick={onOpenInventory}>{t("inventoryTitle")}</FantasyButton>
+            <FantasyButton onClick={onOpenJournal}>{t("journalTitle")}</FantasyButton>
           </div>
         </>
       ) : (
         <div className="empty-state">
-          <p>No saved traveler is known to the valley.</p>
-          <FantasyButton onClick={onBackToMenu}>Back to Menu</FantasyButton>
+          <p>{t("noSavedTraveler")}</p>
+          <FantasyButton onClick={onBackToMenu}>{t("backToMenu")}</FantasyButton>
         </div>
       )}
     </ScreenPanel>

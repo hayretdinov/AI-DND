@@ -77,6 +77,7 @@ button {
 }
 
 .main-menu {
+  position: relative;
   display: grid;
   gap: 22px;
   justify-items: center;
@@ -196,6 +197,49 @@ button {
 
 .screen-panel__footer .fantasy-button {
   min-width: 180px;
+}
+
+.language-switch {
+  display: grid;
+  gap: 10px;
+  color: #f2e2bd;
+  font-weight: 700;
+}
+
+.language-switch--compact {
+  justify-self: end;
+  width: auto;
+}
+
+.language-switch__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.language-switch__option {
+  min-height: 36px;
+  border: 1px solid rgba(164, 124, 69, 0.36);
+  border-radius: 4px;
+  padding: 0 12px;
+  color: #d7c6a6;
+  cursor: pointer;
+  background:
+    linear-gradient(rgba(69, 50, 31, 0.9), rgba(32, 24, 18, 0.96)),
+    #352719;
+  font: inherit;
+}
+
+.language-switch__option:hover {
+  filter: brightness(1.08);
+}
+
+.language-switch__option--active {
+  color: #fff3d3;
+  border-color: rgba(196, 155, 93, 0.86);
+  background:
+    linear-gradient(rgba(117, 74, 34, 0.94), rgba(70, 42, 24, 0.96)),
+    #5b351d;
 }
 
 .character-form,
@@ -390,6 +434,10 @@ button {
   .main-menu,
   .screen-panel {
     padding: 24px;
+  }
+
+  .language-switch--compact {
+    justify-self: center;
   }
 
   .origin-grid,

@@ -1,4 +1,5 @@
 import { ScreenPanel } from "../components/ScreenPanel";
+import { t } from "../i18n/i18n";
 
 type EventSceneProps = {
   onBackToMenu: () => void;
@@ -7,8 +8,8 @@ type EventSceneProps = {
 export function EventScene({ onBackToMenu }: EventSceneProps) {
   return (
     <ScreenPanel
-      title="Event Scene"
-      subtitle="A placeholder for narration, NPC speech, thoughts, and free text input."
+      title={t("eventSceneTitle")}
+      subtitle={t("eventSceneSubtitle")}
       onBackToMenu={onBackToMenu}
     />
   );

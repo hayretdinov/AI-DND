@@ -1,4 +1,5 @@
 import { ScreenPanel } from "../components/ScreenPanel";
+import { t } from "../i18n/i18n";
 
 type JournalProps = {
   onBackToMenu: () => void;
@@ -7,8 +8,8 @@ type JournalProps = {
 export function Journal({ onBackToMenu }: JournalProps) {
   return (
     <ScreenPanel
-      title="Journal"
-      subtitle="A placeholder for observations, memories, rumors, promises, and consequences."
+      title={t("journalTitle")}
+      subtitle={t("journalSubtitle")}
       onBackToMenu={onBackToMenu}
     />
   );
