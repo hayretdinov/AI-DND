@@ -1,12 +1,13 @@
 import { FantasyButton } from "../components/FantasyButton";
 
 type MainMenuProps = {
+  hasSave: boolean;
   onNewGame: () => void;
   onContinue: () => void;
   onSettings: () => void;
 };
 
-export function MainMenu({ onNewGame, onContinue, onSettings }: MainMenuProps) {
+export function MainMenu({ hasSave, onNewGame, onContinue, onSettings }: MainMenuProps) {
   return (
     <section className="main-menu" aria-labelledby="main-menu-title">
       <div className="main-menu__mark">Ashen Valley</div>
@@ -17,7 +18,9 @@ export function MainMenu({ onNewGame, onContinue, onSettings }: MainMenuProps) {
         <FantasyButton variant="primary" onClick={onNewGame}>
           New Game
         </FantasyButton>
-        <FantasyButton onClick={onContinue}>Continue</FantasyButton>
+        <FantasyButton onClick={onContinue} disabled={!hasSave}>
+          Continue
+        </FantasyButton>
         <FantasyButton onClick={onSettings}>Settings</FantasyButton>
       </nav>
     </section>

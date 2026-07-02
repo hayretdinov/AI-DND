@@ -322,3 +322,46 @@ npm run dev -- --host 127.0.0.1
 - добавить простой placeholder flow `CharacterCreation -> WorldMap`;
 - подготовить mock data только для экранов;
 - добавить `localStorage` save/load только после согласования минимальной структуры save.
+## Character creation MVP
+
+Дата обновления: 2026-07-02
+
+### Что реализовано
+
+- Экран `CharacterCreation` стал рабочим MVP-экраном создания персонажа.
+- Добавлены поля `character name` и `origin` со стартовыми происхождениями: `prisoner`, `deserter`, `hunter`, `scholar`, `outcast`.
+- Добавлены базовые характеристики: `strength`, `dexterity`, `constitution`, `intelligence`, `wisdom`, `charisma`.
+- Реализовано распределение 12 очков поверх базового значения 8, с минимумом 8 и максимумом 16 на старте.
+- Рассчитываются стартовые параметры: `health`, `stamina`, `armorClass`.
+- После `Start Journey` создается объект `player`, сохраняется в `localStorage` под ключом `ai-dnd-save`, затем открывается `WorldMap`.
+- `MainMenu` показывает `Continue` активной только при наличии сохранения.
+- `WorldMap` показывает имя, происхождение и стартовые параметры сохраненного персонажа; при отсутствии сохранения показывает сообщение и возврат в меню.
+
+### Добавленные файлы
+
+- `client/src/types/player.ts` - типы `PlayerCharacter`, `PlayerOrigin`, `Attributes`, `DerivedStats`.
+- `client/src/systems/save/saveSystem.ts` - простой helper для `saveGame`, `loadGame`, `hasSave`, `deleteSave`.
+
+### Что не добавлялось
+
+- Backend не добавлялся.
+- AI integration не добавлялась.
+- Боевая система не добавлялась.
+- Инвентарь и карта с логикой путешествия не добавлялись.
+- UI-библиотеки не использовались.
+
+### Проверка
+
+В `client/` выполнено:
+
+```powershell
+npm run build
+```
+
+Результат: production build успешно собран.
+
+Для ручной проверки экрана:
+
+```powershell
+npm run dev
+```
