@@ -53,4 +53,9 @@ export const en = {
   eventSceneSubtitle: "A placeholder for narration, NPC speech, thoughts, and free text input.",
   settingsTitle: "Settings",
   settingsSubtitle: "A placeholder for accessibility, text scale, and thought display preferences.",
-} satisfies Record<keyof typeof ru, string>;
+  locationIronCamp: "Iron Camp",
+  locationAshVillage: "Ash Village",
+  locationOldMine: "Old Mine",
+  locationBrokenForest: "Broken Forest",
+  locationFractureEdge: "Fracture Edge",
+};

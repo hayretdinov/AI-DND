@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-DND — Создание персонажа</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #ead9b8;
+      background:
+        linear-gradient(rgba(8, 7, 6, 0.82), rgba(8, 7, 6, 0.96)),
+        radial-gradient(circle at center, #3b2416 0%, #120d0a 55%, #050403 100%);
+    }
+
+    .screen {
+      min-height: 100vh;
+      padding: 36px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .panel {
+      width: 1100px;
+      min-height: 680px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      padding: 28px;
+      border: 2px solid #7b5831;
+      background: linear-gradient(rgba(38, 27, 18, 0.95), rgba(16, 11, 8, 0.98));
+      box-shadow:
+        0 0 45px rgba(0, 0, 0, 0.85),
+        inset 0 0 35px rgba(0, 0, 0, 0.6);
+    }
+
+    .portrait {
+      border: 1px solid #7b5831;
+      background:
+        radial-gradient(circle at center, rgba(150, 100, 55, 0.2), transparent 50%),
+        #110c08;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 620px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .portrait-frame {
+      width: 230px;
+      height: 360px;
+      border: 2px solid #8b6238;
+      background:
+        linear-gradient(rgba(80, 55, 35, 0.45), rgba(20, 14, 10, 0.9));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 96px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 38px;
+      color: #f2d28b;
+      letter-spacing: 2px;
+    }
+
+    h2 {
+      color: #d9b879;
+      margin: 22px 0 12px;
+      border-bottom: 1px solid #6d4b2c;
+      padding-bottom: 8px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #c7b08b;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      background: #120c08;
+      border: 1px solid #7b5831;
+      color: #ead9b8;
+      font-family: inherit;
+      font-size: 17px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #d39a52;
+      box-shadow: 0 0 12px rgba(190, 120, 40, 0.25);
+    }
+
+    .races {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .race-card {
+      padding: 14px;
+      border: 1px solid #6d4b2c;
+      background: rgba(18, 12, 8, 0.8);
+      cursor: pointer;
+      transition: 0.15s;
+      text-align: center;
+    }
+
+    .race-card:hover,
+    .race-card.active {
+      border-color: #d39a52;
+      background: rgba(80, 50, 25, 0.75);
+      color: #fff4d2;
+    }
+
+    .attributes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .attribute {
+      display: grid;
+      grid-template-columns: 1fr 38px 54px 38px;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #5f4127;
+      background: rgba(12, 8, 5, 0.65);
+    }
+
+    .attribute button {
+      padding: 6px;
+      font-size: 18px;
+    }
+
+    .value {
+      text-align: center;
+      font-size: 20px;
+      color: #f2d28b;
+    }
+
+    .summary {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .summary div {
+      padding: 12px;
+      border: 1px solid #5f4127;
+      background: rgba(12, 8, 5, 0.65);
+      text-align: center;
+    }
+
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 18px;
+      color: #ead9b8;
+      padding: 13px 18px;
+      border: 1px solid #8b6238;
+      background: linear-gradient(#4b3320, #24160f);
+      transition: 0.15s;
+    }
+
+    button:hover {
+      border-color: #d39a52;
+      color: #fff4d2;
+      transform: translateY(-1px);
+    }
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .points {
+      color: #f2d28b;
+      margin-top: 12px;
+      font-size: 18px;
+    }
+
+    .note {
+      color: #9f8b6c;
+      line-height: 1.5;
+      font-size: 15px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="screen">
+    <main class="panel">
+      <aside class="portrait">
+        <div class="portrait-frame" id="portraitIcon">⚔</div>
+        <h2 id="raceTitle">Человек</h2>
+        <p class="note" id="raceDescription">
+          Самая гибкая раса. Люди быстрее других приспосабливаются к жестоким законам Долины Пепла.
+        </p>
+      </aside>
+
+      <section>
+        <h1>Создание персонажа</h1>
+
+        <label>Имя персонажа</label>
+        <input id="characterName" placeholder="Введите имя..." />
+
+        <h2>Раса</h2>
+        <div class="races">
+          <div class="race-card active" onclick="selectRace('human')">Человек</div>
+          <div class="race-card" onclick="selectRace('elf')">Эльф</div>
+          <div class="race-card" onclick="selectRace('dwarf')">Дворф</div>
+          <div class="race-card" onclick="selectRace('orc')">Орк</div>
+        </div>
+
+        <h2>Происхождение</h2>
+        <select id="origin">
+          <option value="prisoner">Заключённый</option>
+          <option value="deserter">Дезертир</option>
+          <option value="hunter">Охотник</option>
+          <option value="scholar">Учёный</option>
+          <option value="outcast">Изгнанник</option>
+        </select>
+
+        <h2>Характеристики</h2>
+        <div class="points">Осталось очков: <span id="points">12</span></div>
+
+        <div class="attributes" id="attributes"></div>
+
+        <div class="summary">
+          <div>Здоровье<br><strong id="health">10</strong></div>
+          <div>Выносливость<br><strong id="stamina">10</strong></div>
+          <div>Класс брони<br><strong id="armorClass">10</strong></div>
+        </div>
+
+        <div class="actions">
+          <button onclick="location.href='main-menu.html'">Назад</button>
+          <button onclick="startJourney()">Начать путь</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const attributes = {
+      strength: 8,
+      dexterity: 8,
+      constitution: 8,
+      intelligence: 8,
+      wisdom: 8,
+      charisma: 8
+    };
+
+    const names = {
+      strength: "Сила",
+      dexterity: "Ловкость",
+      constitution: "Телосложение",
+      intelligence: "Интеллект",
+      wisdom: "Мудрость",
+      charisma: "Харизма"
+    };
+
+    const races = {
+      human: {
+        title: "Человек",
+        icon: "⚔",
+        description: "Самая гибкая раса. Люди быстрее других приспосабливаются к жестоким законам Долины Пепла."
+      },
+      elf: {
+        title: "Эльф",
+        icon: "☾",
+        description: "Эльфы чувствуют древнюю магию Предела, но чужие земли встречают их холодно."
+      },
+      dwarf: {
+        title: "Дворф",
+        icon: "⛏",
+        description: "Дворфы крепки телом и духом. Старые шахты Черного Кристалла хранят для них особую боль."
+      },
+      orc: {
+        title: "Орк",
+        icon: "☠",
+        description: "Орки сильны и выносливы. В Долине Пепла их боятся, но редко недооценивают."
+      }
+    };
+
+    let selectedRace = "human";
+    let totalPoints = 12;
+
+    function modifier(value) {
+      return Math.floor((value - 10) / 2);
+    }
+
+    function usedPoints() {
+      return Object.values(attributes).reduce((sum, value) => sum + (value - 8), 0);
+    }
+
+    function remainingPoints() {
+      return totalPoints - usedPoints();
+    }
+
+    function renderAttributes() {
+      const container = document.getElementById("attributes");
+      container.innerHTML = "";
+
+      Object.keys(attributes).forEach((key) => {
+        const row = document.createElement("div");
+        row.className = "attribute";
+
+        row.innerHTML = `
+          <span>${names[key]}</span>
+          <button onclick="decrease('${key}')">-</button>
+          <span class="value">${attributes[key]}</span>
+          <button onclick="increase('${key}')">+</button>
+        `;
+
+        container.appendChild(row);
+      });
+
+      document.getElementById("points").textContent = remainingPoints();
+      document.getElementById("health").textContent = 10 + modifier(attributes.constitution);
+      document.getElementById("stamina").textContent =
+        10 + modifier(attributes.strength) + modifier(attributes.constitution);
+      document.getElementById("armorClass").textContent =
+        10 + modifier(attributes.dexterity);
+    }
+
+    function increase(key) {
+      if (attributes[key] >= 16) return;
+      if (remainingPoints() <= 0) return;
+      attributes[key]++;
+      renderAttributes();
+    }
+
+    function decrease(key) {
+      if (attributes[key] <= 8) return;
+      attributes[key]--;
+      renderAttributes();
+    }
+
+    function selectRace(race) {
+      selectedRace = race;
+
+      document.querySelectorAll(".race-card").forEach(card => {
+        card.classList.remove("active");
+      });
+
+      event.target.classList.add("active");
+
+      document.getElementById("raceTitle").textContent = races[race].title;
+      document.getElementById("portraitIcon").textContent = races[race].icon;
+      document.getElementById("raceDescription").textContent = races[race].description;
+    }
+
+    function startJourney() {
+      const name = document.getElementById("characterName").value.trim();
+
+      if (!name) {
+        alert("Введите имя персонажа");
+        return;
+      }
+
+      const save = {
+        player: {
+          name,
+          race: selectedRace,
+          origin: document.getElementById("origin").value,
+          attributes,
+          derivedStats: {
+            health: 10 + modifier(attributes.constitution),
+            stamina: 10 + modifier(attributes.strength) + modifier(attributes.constitution),
+            armorClass: 10 + modifier(attributes.dexterity)
+          }
+        },
+        world: {
+          currentLocationId: "iron_camp",
+          currentDay: 1,
+          currentHour: 8
+        }
+      };
+
+      localStorage.setItem("ai-dnd-save", JSON.stringify(save));
+      alert("Персонаж создан. Позже здесь будет переход на глобальную карту.");
+    }
+
+    renderAttributes();
+  </script>
+</body>
+</html>
