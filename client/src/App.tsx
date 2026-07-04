@@ -29,9 +29,7 @@ export default function App() {
       <div className="app-shell__content">
         {screen === "mainMenu" ? (
           <MainMenu
-            currentLanguage={language}
             hasSave={hasSave()}
-            onLanguageChange={changeLanguage}
             onNewGame={() => setScreen("characterCreation")}
             onContinue={() => setScreen("worldMap")}
             onSettings={() => setScreen("settings")}

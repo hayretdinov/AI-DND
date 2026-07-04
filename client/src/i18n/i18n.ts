@@ -6,7 +6,9 @@ const LANGUAGE_STORAGE_KEY = "ai-dnd-language";
 const DEFAULT_LANGUAGE: Language = "ru";
 const translations = { ru, en };
 
-export type TranslationKey = keyof typeof ru;
+export type TranslationKey = {
+  [Key in keyof typeof ru]: (typeof ru)[Key] extends string ? Key : never;
+}[keyof typeof ru];
 
 function isLanguage(value: string | null): value is Language {
   return value === "ru" || value === "en";

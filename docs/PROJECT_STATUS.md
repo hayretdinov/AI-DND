@@ -411,3 +411,9 @@ npm run dev -- --host 127.0.0.1
 
 - production build успешно собран;
 - Vite dev server успешно запущен на `http://127.0.0.1:5173/` и после проверки остановлен.
+
+## Main menu logo banner
+
+Update date: 2026-07-04
+
+- Main menu logo banner added. Language switcher removed from MainMenu and kept only in Settings.
