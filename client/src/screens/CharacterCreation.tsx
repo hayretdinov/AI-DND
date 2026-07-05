@@ -54,9 +54,9 @@ const CLASS_OPTIONS: Array<SelectorOption<PlayerClass>> = [
 ];
 
 const BACKGROUND_OPTIONS: Array<SelectorOption<BackgroundChoice>> = [
-  { id: "outcast", label: "Изгнанник", symbol: "✧" },
-  { id: "mercenary", label: "Наёмник", symbol: "⚑" },
-  { id: "mageApprentice", label: "Ученик мага", symbol: "✹" },
+  { id: "outcast", label: "Изгнанник", icon: "/assets/icons/origin-outcast.png", symbol: "✧" },
+  { id: "mercenary", label: "Наёмник", icon: "/assets/icons/origin-mercenary.png", symbol: "⚑" },
+  { id: "mageApprentice", label: "Ученик мага", icon: "/assets/icons/origin-mage-apprentice.png", symbol: "✹" },
 ];
 
 const EQUIPMENT_OPTIONS: Array<SelectorOption<EquipmentChoice>> = [
@@ -70,6 +70,7 @@ const ATTRIBUTE_NAMES: Array<keyof Attributes> = [
   "constitution",
   "dexterity",
   "intelligence",
+  "wisdom",
   "charisma",
 ];
 
@@ -130,6 +131,7 @@ const EQUIPMENT_DESCRIPTION: Record<EquipmentChoice, string> = {
 
 const BASE_ATTRIBUTE_VALUE = 8;
 const TOTAL_POINTS = 12;
+const MAX_ATTRIBUTE_VALUE = 16;
 
 const INITIAL_ATTRIBUTES: Attributes = {
   strength: BASE_ATTRIBUTE_VALUE,
@@ -197,10 +199,13 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
   const [characterClass, setCharacterClass] = useState<PlayerClass>("warrior");
   const [background, setBackground] = useState<BackgroundChoice>("outcast");
   const [equipment, setEquipment] = useState<EquipmentChoice>("rags");
-  const [attributes] = useState<Attributes>(INITIAL_ATTRIBUTES);
+  const [attributes, setAttributes] = useState<Attributes>(INITIAL_ATTRIBUTES);
 
   const derivedStats = useMemo(() => getDerivedStats(attributes), [attributes]);
-  const canStartJourney = characterName.trim().length > 0;
+  const trimmedCharacterName = characterName.trim();
+  const isNameMissing = trimmedCharacterName.length === 0;
+  const isNameTooShort = trimmedCharacterName.length > 0 && trimmedCharacterName.length < 2;
+  const canStartJourney = trimmedCharacterName.length >= 2;
   const selectedRace = RACE_OPTIONS.find((option) => option.id === race) ?? RACE_OPTIONS[0];
   const selectedClass =
     CLASS_OPTIONS.find((option) => option.id === characterClass) ?? CLASS_OPTIONS[0];
@@ -240,6 +245,30 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
     0,
   );
   const remainingPoints = TOTAL_POINTS - spentPoints;
+
+  const changeAttribute = (attribute: keyof Attributes, direction: -1 | 1) => {
+    setAttributes((currentAttributes) => {
+      const currentValue = currentAttributes[attribute];
+      const currentSpentPoints = ATTRIBUTE_NAMES.reduce(
+        (total, currentAttribute) =>
+          total + currentAttributes[currentAttribute] - BASE_ATTRIBUTE_VALUE,
+        0,
+      );
+
+      if (direction > 0) {
+        if (currentValue >= MAX_ATTRIBUTE_VALUE || currentSpentPoints >= TOTAL_POINTS) {
+          return currentAttributes;
+        }
+      } else if (currentValue <= BASE_ATTRIBUTE_VALUE) {
+        return currentAttributes;
+      }
+
+      return {
+        ...currentAttributes,
+        [attribute]: currentValue + direction,
+      };
+    });
+  };
 
   const selectorOptions = useMemo(() => {
     switch (activeStep) {
@@ -310,7 +339,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
     saveGame({
       player: {
         id: createCharacterId(),
-        name: characterName.trim(),
+        name: trimmedCharacterName,
         origin: ORIGIN_BY_BACKGROUND[background],
         race,
         gender,
@@ -361,6 +390,16 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
       </aside>
 
       <main className="creation-character-stage" aria-label="Предпросмотр персонажа">
+        <label className="creation-name-field creation-name-field--stage" htmlFor="character-name">
+          <span>Имя персонажа</span>
+          <input
+            id="character-name"
+            value={characterName}
+            onChange={(event) => setCharacterName(event.target.value)}
+            maxLength={32}
+            placeholder="Имя персонажа"
+          />
+        </label>
         <div className="creation-character-stage__light" aria-hidden="true" />
         <img
           className={`creation-character-image creation-character-image--${race}`}
@@ -372,20 +411,14 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
 
       <aside className="creation-reference-panel" aria-label="Информация о персонаже">
         <div className="creation-reference-panel__inner">
-          <label className="creation-name-field" htmlFor="character-name">
-            <span>Имя персонажа</span>
-            <input
-              id="character-name"
-              value={characterName}
-              onChange={(event) => setCharacterName(event.target.value)}
-              maxLength={32}
-              placeholder="Имя персонажа"
-            />
-          </label>
-
           <div className="creation-character-title">
-            <h1 id="character-creation-title">{characterName.trim() || selectedRace.label}</h1>
+            <h1 id="character-creation-title">{trimmedCharacterName || selectedRace.label}</h1>
             <span>Создание персонажа</span>
+          </div>
+
+          <div className="creation-point-summary">
+            <span>Очки характеристик</span>
+            <strong>{remainingPoints}</strong>
           </div>
 
           <div className="creation-attribute-list">
@@ -395,10 +428,36 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                 <div className="creation-attribute-row__body">
                   <div className="creation-attribute-row__header">
                     <span>{ATTRIBUTE_META[attribute].label}</span>
-                    <strong>{attributes[attribute]}</strong>
+                    <div className="creation-attribute-row__controls">
+                      <button
+                        className="creation-attribute-button"
+                        type="button"
+                        onClick={() => changeAttribute(attribute, -1)}
+                        disabled={attributes[attribute] <= BASE_ATTRIBUTE_VALUE}
+                        aria-label={`Уменьшить ${ATTRIBUTE_META[attribute].label}`}
+                      >
+                        -
+                      </button>
+                      <strong>{attributes[attribute]}</strong>
+                      <button
+                        className="creation-attribute-button"
+                        type="button"
+                        onClick={() => changeAttribute(attribute, 1)}
+                        disabled={
+                          attributes[attribute] >= MAX_ATTRIBUTE_VALUE || remainingPoints <= 0
+                        }
+                        aria-label={`Увеличить ${ATTRIBUTE_META[attribute].label}`}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                   <div className="creation-attribute-row__bar">
-                    <span style={{ width: `${(attributes[attribute] / 16) * 100}%` }} />
+                    <span
+                      style={{
+                        width: `${(attributes[attribute] / MAX_ATTRIBUTE_VALUE) * 100}%`,
+                      }}
+                    />
                   </div>
                 </div>
               </div>
@@ -412,10 +471,16 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
           </div>
 
           <div className="creation-derived-stats">
+            <strong className="creation-derived-stats__title">Производные параметры</strong>
             <span>Здоровье {derivedStats.health}</span>
             <span>Запас сил {derivedStats.stamina}</span>
             <span>Броня {derivedStats.armorClass}</span>
-            <span>Очки {remainingPoints}</span>
+          </div>
+
+          <div className="creation-warnings" role="status" aria-live="polite">
+            {isNameMissing ? <span>Введите имя персонажа.</span> : null}
+            {isNameTooShort ? <span>Имя должно быть не короче 2 символов.</span> : null}
+            {remainingPoints > 0 ? <span>Осталось распределить очки: {remainingPoints}.</span> : null}
           </div>
 
           <div className="creation-panel-slots" aria-hidden="true">
@@ -427,7 +492,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         </div>
       </aside>
 
-      <section className="creation-bottom-selector" aria-label="Выбор параметра">
+      <section className="creation-bottom-selector" data-active-step={activeStep} aria-label="Выбор параметра">
         <div className="creation-bottom-selector__title">{selectorTitle}</div>
         <div className="creation-option-row">
           {selectorOptions.map((option) => (

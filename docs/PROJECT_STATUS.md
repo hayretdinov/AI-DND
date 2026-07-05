@@ -417,3 +417,12 @@ npm run dev -- --host 127.0.0.1
 Update date: 2026-07-04
 
 - Main menu logo banner added. Language switcher removed from MainMenu and kept only in Settings.
+
+## CharacterCreation visuals
+
+Update date: 2026-07-04
+
+- CharacterCreation visuals updated: bottom panel replaced, origin icons added.
+- Fixed CharacterCreation bottom panel: removed old outer panel wrapper and kept only the custom uploaded panel image.
+- CharacterCreation updated: attribute point allocation added, character name moved above character preview, stats panel made scrollable.
+- CharacterCreation visuals fixed: bottom panel width restored, origin icons removed from old button frames, character name input repositioned.

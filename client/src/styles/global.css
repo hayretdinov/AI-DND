@@ -1543,7 +1543,7 @@ button {
   display: grid;
   justify-items: center;
   align-items: end;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .creation-character-stage__light {
@@ -1557,6 +1557,7 @@ button {
   filter: blur(6px);
   opacity: 0.68;
   transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .creation-character-image {
@@ -1568,6 +1569,7 @@ button {
   object-fit: contain;
   object-position: center bottom;
   filter: drop-shadow(0 22px 24px rgba(0, 0, 0, 0.82));
+  pointer-events: none;
 }
 
 .creation-character-image--orc {
@@ -1594,6 +1596,7 @@ button {
     0 14px 20px rgba(0, 0, 0, 0.65),
     inset 0 0 20px rgba(0, 0, 0, 0.74);
   transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .creation-reference-panel {
@@ -1613,7 +1616,25 @@ button {
   display: grid;
   gap: clamp(10px, 1.2vh, 16px);
   height: 100%;
-  overflow: hidden;
+  min-height: 0;
+  padding-right: 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: rgba(160, 235, 255, 0.55) rgba(0, 0, 0, 0.25);
+  scrollbar-width: thin;
+}
+
+.creation-reference-panel__inner::-webkit-scrollbar {
+  width: 7px;
+}
+
+.creation-reference-panel__inner::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.creation-reference-panel__inner::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(160, 235, 255, 0.44);
 }
 
 .creation-name-field {
@@ -1637,6 +1658,28 @@ button {
   box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.72);
 }
 
+.creation-name-field--stage {
+  position: absolute;
+  top: clamp(-52px, -4vh, -30px);
+  left: 50%;
+  z-index: 5;
+  width: clamp(220px, 16vw, 280px);
+  padding: 5px 8px;
+  pointer-events: auto;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.34), transparent);
+  transform: translateX(-50%);
+}
+
+.creation-name-field--stage span {
+  text-align: center;
+}
+
+.creation-name-field--stage input {
+  padding: 6px 9px;
+  font-size: clamp(0.82rem, 0.85vw, 1rem);
+  text-align: center;
+}
+
 .creation-character-title {
   display: grid;
   gap: 4px;
@@ -1655,6 +1698,27 @@ button {
 .creation-character-title span {
   color: #bba27a;
   font-size: clamp(0.82rem, 0.85vw, 0.96rem);
+}
+
+.creation-point-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(160, 235, 255, 0.36);
+  padding: 7px 10px;
+  color: #bfefff;
+  background: rgba(7, 15, 20, 0.46);
+  box-shadow: inset 0 0 14px rgba(120, 220, 255, 0.08);
+}
+
+.creation-point-summary span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.creation-point-summary strong {
+  color: #dff8ff;
+  text-shadow: 0 0 8px rgba(120, 220, 255, 0.55);
 }
 
 .creation-attribute-list {
@@ -1694,6 +1758,43 @@ button {
   color: #f6d994;
 }
 
+.creation-attribute-row__controls {
+  display: grid;
+  grid-template-columns: 26px 32px 26px;
+  gap: 5px;
+  align-items: center;
+  justify-items: center;
+}
+
+.creation-attribute-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border: 1px solid rgba(160, 235, 255, 0.42);
+  border-radius: 50%;
+  padding: 0;
+  color: #dff8ff;
+  cursor: pointer;
+  background: rgba(9, 18, 24, 0.72);
+  box-shadow:
+    0 0 10px rgba(120, 220, 255, 0.16),
+    inset 0 0 8px rgba(0, 0, 0, 0.74);
+}
+
+.creation-attribute-button:hover:not(:disabled) {
+  border-color: rgba(190, 245, 255, 0.92);
+  box-shadow:
+    0 0 12px rgba(120, 220, 255, 0.42),
+    inset 0 0 8px rgba(0, 0, 0, 0.74);
+}
+
+.creation-attribute-button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+  opacity: 0.32;
+}
+
 .creation-attribute-row__bar {
   height: 8px;
   border: 1px solid rgba(118, 90, 55, 0.7);
@@ -1727,6 +1828,28 @@ button {
   font-size: 0.76rem;
 }
 
+.creation-derived-stats__title {
+  grid-column: 1 / -1;
+  color: #dff8ff;
+  font-size: 0.78rem;
+  text-shadow: 0 0 8px rgba(120, 220, 255, 0.45);
+  text-transform: uppercase;
+}
+
+.creation-warnings {
+  display: grid;
+  gap: 5px;
+  color: #bfefff;
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.creation-warnings span {
+  border-left: 1px solid rgba(160, 235, 255, 0.65);
+  padding-left: 8px;
+  text-shadow: 0 0 8px rgba(120, 220, 255, 0.55);
+}
+
 .creation-panel-slots {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1747,41 +1870,28 @@ button {
 }
 
 .creation-bottom-selector {
-  bottom: clamp(20px, 3.4vh, 40px);
-  left: 29vw;
-  width: clamp(480px, 40vw, 760px);
-  min-height: clamp(118px, 14vh, 162px);
+  bottom: clamp(10px, 1.8vh, 26px);
+  left: 50%;
+  width: min(90vw, 1500px);
+  min-height: clamp(250px, 27vh, 340px);
   display: grid;
-  gap: 8px;
+  gap: clamp(4px, 0.7vh, 10px);
   justify-items: center;
-  padding: clamp(14px, 1.6vw, 22px) clamp(22px, 2vw, 34px);
-  border: 1px solid rgba(152, 118, 72, 0.5);
-  background:
-    linear-gradient(rgba(13, 12, 11, 0.72), rgba(4, 4, 5, 0.84)),
-    rgba(10, 8, 7, 0.78);
-  box-shadow:
-    inset 0 0 0 1px rgba(232, 190, 108, 0.08),
-    inset 0 0 28px rgba(0, 0, 0, 0.8),
-    0 18px 40px rgba(0, 0, 0, 0.62);
+  align-content: center;
+  padding:
+    clamp(76px, 7vh, 108px)
+    clamp(78px, 7vw, 120px)
+    clamp(52px, 5.6vh, 78px);
+  border: 0;
+  background: url("/assets/ui/character-creation-bottom-panel.png") center / 100% 100% no-repeat;
+  box-shadow: none;
+  overflow: visible;
+  transform: translateX(-50%);
 }
 
 .creation-bottom-selector::before,
 .creation-bottom-selector::after {
-  position: absolute;
-  top: 50%;
-  width: 22px;
-  height: 22px;
-  border: 1px solid rgba(207, 158, 81, 0.72);
-  content: "";
-  transform: translateY(-50%) rotate(45deg);
-}
-
-.creation-bottom-selector::before {
-  left: 18px;
-}
-
-.creation-bottom-selector::after {
-  right: 18px;
+  display: none;
 }
 
 .creation-bottom-selector__title {
@@ -1862,6 +1972,58 @@ button {
     0 0 20px rgba(255, 166, 60, 0.88);
 }
 
+.creation-bottom-selector[data-active-step="background"] .creation-option-row {
+  align-items: start;
+  gap: clamp(30px, 4.2vw, 64px);
+}
+
+.creation-bottom-selector[data-active-step="background"] .creation-option {
+  min-width: clamp(104px, 8vw, 142px);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.creation-bottom-selector[data-active-step="background"] .creation-option__icon {
+  width: clamp(92px, 7.2vw, 124px);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.74));
+  overflow: visible;
+}
+
+.creation-bottom-selector[data-active-step="background"] .creation-option__icon img {
+  width: 100%;
+  height: 100%;
+  filter: none;
+}
+
+.creation-bottom-selector[data-active-step="background"] .creation-option:hover .creation-option__icon {
+  border-color: transparent;
+  box-shadow: none;
+  filter:
+    drop-shadow(0 12px 14px rgba(0, 0, 0, 0.74))
+    drop-shadow(0 0 12px rgba(164, 221, 255, 0.42));
+}
+
+.creation-bottom-selector[data-active-step="background"] .creation-option--active .creation-option__icon {
+  border-color: transparent;
+  box-shadow: none;
+  filter:
+    drop-shadow(0 12px 14px rgba(0, 0, 0, 0.74))
+    drop-shadow(0 0 18px rgba(120, 220, 255, 0.72))
+    drop-shadow(0 0 10px rgba(241, 208, 141, 0.42));
+  transform: translateY(-3px);
+}
+
+.creation-bottom-selector[data-active-step="background"] .creation-option--active {
+  color: #dff8ff;
+  background: transparent;
+  box-shadow: none;
+  text-shadow: 0 0 8px rgba(120, 220, 255, 0.75);
+}
+
 .creation-confirm-button {
   right: clamp(42px, 4.4vw, 84px);
   bottom: clamp(30px, 4vh, 48px);
@@ -1899,8 +2061,13 @@ button {
   }
 
   .creation-bottom-selector {
-    left: 28vw;
-    width: 42vw;
+    left: 50%;
+    width: min(90vw, 1280px);
+    min-height: clamp(238px, 28vh, 310px);
+    padding:
+      clamp(70px, 7vh, 92px)
+      clamp(62px, 6vw, 96px)
+      clamp(48px, 5.8vh, 68px);
   }
 
   .creation-confirm-button {
@@ -1960,8 +2127,14 @@ button {
 
   .creation-bottom-selector {
     grid-area: selector;
-    width: min(720px, 100%);
+    width: min(900px, 100%);
+    min-height: clamp(220px, 30vw, 300px);
+    padding:
+      clamp(64px, 8vw, 92px)
+      clamp(48px, 7vw, 86px)
+      clamp(44px, 6vw, 64px);
     justify-self: center;
+    transform: none;
   }
 
   .creation-confirm-button {
