@@ -426,3 +426,17 @@ Update date: 2026-07-04
 - Fixed CharacterCreation bottom panel: removed old outer panel wrapper and kept only the custom uploaded panel image.
 - CharacterCreation updated: attribute point allocation added, character name moved above character preview, stats panel made scrollable.
 - CharacterCreation visuals fixed: bottom panel width restored, origin icons removed from old button frames, character name input repositioned.
+
+## WorldMap MVP
+
+Update date: 2026-07-05
+
+- WorldMap MVP implemented: connected map nodes, route-only travel, player marker movement, location info panel, and save persistence for current location.
+
+## Companion System planned
+
+A new Companion System has been planned and documented in `docs/Systems/COMPANION_SYSTEM.md`.
+
+The first major companion is Anariel, an elf woman who may join the player early in the game. The system includes companion guidance, camp conversations, travel energy, relationship values, optional romance, companion agency, and a future tragic story arc.
+
+This system is documentation-only for now. No frontend, backend, AI integration, combat logic, or save changes have been implemented yet.
