@@ -460,3 +460,52 @@ Update date: 2026-07-10
 - Existing route selection, Travel, Camp / Rest entry, save/load, and RU/EN localization logic are preserved.
 - Production build passes with `npm.cmd run build` from `client/`.
 - Next step: polish routes and EventScene arrival.
+
+## World Map road alignment
+
+Update date: 2026-07-10
+
+- Map node coordinates are aligned to the circular points already drawn on the world map image.
+- Routes now follow adjacent visible road points instead of direct lines across terrain.
+- Added intermediate `road_point` and `danger_point` nodes for the western, central, northern, southern, eastern, marsh, and volcanic road chains.
+- The UI no longer draws a custom route network over the map; it highlights existing points and available neighbors instead.
+- Production build passes with `npm.cmd run build` from `client/`.
+
+## World Map fullscreen pan and zoom
+
+Update date: 2026-07-10
+
+- WorldMap now uses a fullscreen `world-map-viewport` with a movable/scalable `world-map-canvas`.
+- Mouse drag pans the map and wheel input zooms between `1` and `3`.
+- Added small zoom in, zoom out, and reset controls over the map.
+- Location icons and road point markers were reduced so they do not cover the painted map roads.
+- Existing Travel, Travel Energy display, Camp / Rest entry, save/load, and RU/EN text remain in place.
+
+## World Map pathfinding fix
+
+Update date: 2026-07-10
+
+- Added BFS pathfinding through intermediate world map nodes with `findPathBetweenNodes`.
+- Added `getTravelPathCost`, `getTravelPathDangerLevel`, and `validateWorldMapData` helpers.
+- Routes are validated for missing node ids, invalid coordinates, invalid costs, invalid travel time, and missing start node.
+- Travel now distinguishes missing paths from insufficient travel energy.
+- Production build passes with `npm.cmd run build` from `client/`.
+
+## World Map point selection fix
+
+Update date: 2026-07-10
+
+- Map nodes now stop pointer/click propagation so marker clicks do not start drag-pan.
+- Nodes support click and keyboard selection with Enter/Space.
+- Current, selected, available, and unavailable states have explicit visible styling.
+- Road points keep a small visible marker with a larger clickable hit area for debugging and travel.
+- Production build passes with `npm.cmd run build` from `client/`.
+
+## World Map road point marker added
+
+Update date: 2026-07-10
+
+- Added `road_point_marker.png` to `client/public/assets/world-map/icons/`.
+- `road_point` nodes now use the dedicated `road_point` icon type.
+- Road point markers render as smaller clickable map icons.
+- Unavailable icons are more visible, while selected, current, and available states remain prominent.

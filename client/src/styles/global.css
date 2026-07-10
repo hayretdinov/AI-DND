@@ -2663,6 +2663,11 @@ button {
   overflow: visible;
 }
 
+.world-map-node--minor {
+  width: clamp(20px, 1.7vw, 30px);
+  height: clamp(20px, 1.7vw, 30px);
+}
+
 .world-map-node:hover,
 .world-map-node--selected {
   border-color: transparent;
@@ -2670,7 +2675,8 @@ button {
   transform: translate(-50%, -50%) scale(1.08);
 }
 
-.world-map-node--available .world-map-icon {
+.world-map-node--available .world-map-icon,
+.world-map-node--available .world-map-road-marker {
   filter:
     drop-shadow(0 8px 8px rgba(0, 0, 0, 0.72))
     drop-shadow(0 0 10px rgba(233, 201, 133, 0.68));
@@ -2683,11 +2689,32 @@ button {
 }
 
 .world-map-node--current .world-map-icon,
-.world-map-node--selected .world-map-icon {
+.world-map-node--selected .world-map-icon,
+.world-map-node--current .world-map-road-marker,
+.world-map-node--selected .world-map-road-marker {
   filter:
     drop-shadow(0 8px 10px rgba(0, 0, 0, 0.78))
     drop-shadow(0 0 12px rgba(118, 220, 255, 0.92))
     drop-shadow(0 0 18px rgba(255, 229, 170, 0.45));
+}
+
+.world-map-road-marker {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgba(248, 229, 176, 0.78);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 244, 204, 0.62) 0 18%, rgba(31, 24, 17, 0.24) 20% 100%);
+  box-shadow:
+    inset 0 0 6px rgba(255, 236, 184, 0.34),
+    0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+.world-map-node--danger_point .world-map-road-marker {
+  border-color: rgba(232, 144, 95, 0.74);
+  background: radial-gradient(circle, rgba(255, 194, 126, 0.58) 0 18%, rgba(54, 18, 14, 0.28) 20% 100%);
 }
 
 .world-map-icon {
@@ -2733,6 +2760,15 @@ button {
   border-color: rgba(199, 151, 85, 0.5);
   color: #f8e6bd;
   background: rgba(10, 8, 7, 0.82);
+}
+
+.world-map-node--minor .world-map-node__label {
+  display: none;
+}
+
+.world-map-node--minor.world-map-node--selected .world-map-node__label,
+.world-map-node--minor.world-map-node--current .world-map-node__label {
+  display: block;
 }
 
 .world-map-player-marker {
@@ -2982,5 +3018,369 @@ button {
   .world-map-node {
     width: 50px;
     height: 50px;
+  }
+}
+
+.app-shell__content:has(.world-map-screen) {
+  width: 100vw;
+  min-height: 100vh;
+  padding: 0;
+}
+
+.screen-panel:has(.world-map-screen) {
+  width: 100vw;
+  max-width: none;
+  min-height: 100vh;
+}
+
+.world-map-screen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 0;
+  background: #070707;
+}
+
+.world-map-viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background:
+    radial-gradient(circle at center, rgba(59, 48, 33, 0.28), transparent 48%),
+    #080807;
+}
+
+.world-map-viewport--dragging {
+  cursor: grabbing;
+}
+
+.world-map-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100vw, 177.7778vh);
+  aspect-ratio: 16 / 9;
+  transform-origin: center;
+  transition: transform 80ms ease-out;
+  user-select: none;
+  will-change: transform;
+}
+
+.world-map-viewport--dragging .world-map-canvas {
+  transition: none;
+}
+
+.world-map-canvas::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 52%, transparent 62%, rgba(0, 0, 0, 0.38) 100%),
+    linear-gradient(180deg, rgba(2, 2, 2, 0.16), transparent 28%, rgba(2, 2, 2, 0.24));
+  content: "";
+}
+
+.world-map-background,
+.world-map-board__mist {
+  pointer-events: none;
+}
+
+.world-map-background img {
+  user-select: none;
+}
+
+.world-map-node {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+}
+
+.world-map-node--camp_point,
+.world-map-node--danger_point {
+  width: 36px;
+  height: 36px;
+}
+
+.world-map-node--minor {
+  width: 24px;
+  height: 24px;
+}
+
+.world-map-node--road-point {
+  width: 24px;
+  height: 24px;
+}
+
+.world-map-icon img {
+  width: 100%;
+  height: 100%;
+}
+
+.world-map-node:hover,
+.world-map-node--selected {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.world-map-node:focus-visible {
+  outline: 2px solid rgba(255, 226, 150, 0.95);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+
+.world-map-node--available:not(.world-map-node--selected):not(.world-map-node--current) {
+  opacity: 1;
+}
+
+.world-map-node--available:not(.world-map-node--selected):not(.world-map-node--current)::after {
+  position: absolute;
+  inset: -4px;
+  border: 1px solid rgba(255, 226, 150, 0.44);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(255, 207, 117, 0.24);
+}
+
+.world-map-node--unavailable {
+  opacity: 0.68;
+  filter: grayscale(0.32) saturate(0.88);
+}
+
+.world-map-node--unavailable:hover {
+  opacity: 0.84;
+}
+
+.world-map-node--current .world-map-icon::before,
+.world-map-node--selected .world-map-icon::before,
+.world-map-node--current .world-map-road-point-icon::before,
+.world-map-node--selected .world-map-road-point-icon::before,
+.world-map-node--current .world-map-road-marker::before,
+.world-map-node--selected .world-map-road-marker::before {
+  position: absolute;
+  inset: -6px;
+  border: 2px solid rgba(193, 239, 255, 0.88);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  box-shadow:
+    0 0 10px rgba(120, 220, 255, 0.72),
+    inset 0 0 8px rgba(120, 220, 255, 0.24);
+}
+
+.world-map-node--selected .world-map-icon::before,
+.world-map-node--selected .world-map-road-point-icon::before,
+.world-map-node--selected .world-map-road-marker::before {
+  border-color: rgba(255, 218, 132, 0.9);
+  box-shadow:
+    0 0 10px rgba(255, 203, 104, 0.72),
+    inset 0 0 8px rgba(255, 203, 104, 0.24);
+}
+
+.world-map-road-marker {
+  border-width: 1px;
+  width: 10px;
+  height: 10px;
+}
+
+.world-map-road-point-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  transition:
+    filter 160ms ease,
+    transform 160ms ease;
+}
+
+.world-map-road-point-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.world-map-road-point-icon::after {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: rgba(255, 221, 139, 0.36);
+  content: "";
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 0 8px rgba(255, 204, 105, 0.32);
+}
+
+.world-map-node--road-point:hover .world-map-road-point-icon,
+.world-map-node--road-point.world-map-node--selected .world-map-road-point-icon,
+.world-map-node--road-point.world-map-node--current .world-map-road-point-icon {
+  filter: drop-shadow(0 0 8px rgba(255, 220, 138, 0.82));
+  transform: scale(1.12);
+}
+
+.world-map-node--road-point:hover .world-map-road-point-icon::after,
+.world-map-node--road-point.world-map-node--available .world-map-road-point-icon::after {
+  opacity: 1;
+}
+
+.world-map-player-marker {
+  width: 42px;
+  height: 42px;
+  border-width: 2px;
+}
+
+.world-map-ui-top,
+.world-map-ui-left,
+.world-map-ui-right,
+.world-map-ui-bottom,
+.world-map-zoom-controls {
+  position: absolute;
+  z-index: 10;
+}
+
+.world-map-ui-top {
+  top: 0;
+  left: 50%;
+  width: min(880px, calc(100vw - 220px));
+  min-height: 74px;
+  transform: translateX(-50%);
+}
+
+.world-map-ui-left {
+  top: 84px;
+  left: 10px;
+  width: clamp(96px, 7vw, 128px);
+  max-height: calc(100vh - 180px);
+  overflow: hidden;
+}
+
+.world-map-ui-right {
+  top: 96px;
+  right: 10px;
+  width: clamp(260px, 21vw, 360px);
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
+
+.world-map-ui-bottom {
+  right: 50%;
+  bottom: 0;
+  width: min(940px, calc(100vw - 240px));
+  min-height: 88px;
+  transform: translateX(50%);
+}
+
+.world-map-zoom-controls {
+  right: 18px;
+  bottom: 110px;
+  display: flex;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid rgba(190, 145, 73, 0.48);
+  background: rgba(10, 8, 7, 0.78);
+  box-shadow:
+    inset 0 0 18px rgba(0, 0, 0, 0.72),
+    0 10px 22px rgba(0, 0, 0, 0.4);
+}
+
+.world-map-zoom-controls button {
+  min-width: 34px;
+  min-height: 32px;
+  border: 1px solid rgba(211, 168, 94, 0.58);
+  color: #f8e2b4;
+  cursor: pointer;
+  background:
+    linear-gradient(rgba(61, 42, 24, 0.88), rgba(19, 15, 12, 0.94)),
+    #1b130e;
+}
+
+.world-map-zoom-controls button:hover {
+  border-color: rgba(242, 204, 132, 0.9);
+  filter: brightness(1.1);
+}
+
+@media (max-width: 960px) {
+  .world-map-ui-top {
+    width: min(720px, calc(100vw - 24px));
+  }
+
+  .world-map-ui-left {
+    top: 78px;
+    width: 92px;
+  }
+
+  .world-map-ui-right {
+    top: auto;
+    right: 8px;
+    bottom: 104px;
+    width: min(340px, calc(100vw - 112px));
+    max-height: 38vh;
+  }
+
+  .world-map-ui-bottom {
+    width: calc(100vw - 16px);
+  }
+
+  .world-map-zoom-controls {
+    right: 12px;
+    bottom: 202px;
+  }
+}
+
+@media (max-width: 680px) {
+  .world-map-ui-top,
+  .world-map-ui-bottom {
+    width: calc(100vw - 12px);
+    gap: 10px;
+    padding-inline: 18px;
+  }
+
+  .world-map-ui-left {
+    top: 76px;
+    left: 6px;
+    width: 78px;
+    padding: 12px 8px;
+  }
+
+  .world-map-ui-right {
+    left: 6px;
+    right: 6px;
+    bottom: 100px;
+    width: auto;
+  }
+
+  .world-map-node {
+    width: 30px;
+    height: 30px;
+  }
+
+  .world-map-node--minor {
+    width: 9px;
+    height: 9px;
+  }
+
+  .world-map-node--road-point {
+    width: 22px;
+    height: 22px;
+  }
+
+  .world-map-road-point-icon {
+    width: 18px;
+    height: 18px;
   }
 }

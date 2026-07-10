@@ -1,15 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
 import { ScreenPanel } from "../components/ScreenPanel";
 import { FantasyButton } from "../components/FantasyButton";
 import { t, type TranslationKey } from "../i18n/i18n";
 import {
   getConnectedNodeIds,
-  getRouteBetween,
+  getTravelPathCost,
+  getTravelPathDangerLevel,
   getWorldMapNodeById,
   isWorldMapNodeId,
+  findPathBetweenNodes,
+  validateWorldMapData,
   WORLD_MAP_START_NODE_ID,
   worldMapNodes,
-  worldMapRoutes,
   type MapNode,
   type WorldMapIconType,
   type WorldMapNodeId,
@@ -32,6 +34,10 @@ const WORLD_MAP_UI_PATH = "/assets/world-map/ui/";
 const TRAVEL_ENERGY_MAX = 3;
 const CURRENT_DAY = 1;
 const CURRENT_HOUR = "06:00";
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.15;
+const DRAG_THRESHOLD_PX = 5;
 
 const worldMapIconAssets: Record<WorldMapIconType, string> = {
   northwest_winter_city: "/assets/world-map/icons/northwest_winter_city.png",
@@ -46,6 +52,7 @@ const worldMapIconAssets: Record<WorldMapIconType, string> = {
   swamp: "/assets/world-map/icons/swamp_location.png",
   waterfall: "/assets/world-map/icons/waterfall_location.png",
   volcanic_lava: "/assets/world-map/icons/volcanic_lava_location.png",
+  road_point: "/assets/world-map/icons/road_point_marker.png",
 };
 
 function translateMapKey(key: string) {
@@ -54,10 +61,6 @@ function translateMapKey(key: string) {
 
 function getStatusClass(status: NodeStatus) {
   return status === "locked" || status === "distant" ? "unavailable" : status;
-}
-
-function getTravelCost(dangerLevel?: number) {
-  return dangerLevel === undefined ? 0 : Math.max(1, dangerLevel + 1);
 }
 
 function getNodeStatus(
@@ -113,26 +116,115 @@ export function WorldMap({
   const [markerPosition, setMarkerPosition] = useState({ x: initialNode.x, y: initialNode.y });
   const [travelingTo, setTravelingTo] = useState<WorldMapNodeId | null>(null);
   const [arrivalMessage, setArrivalMessage] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStateRef = useRef({
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+    startPanX: 0,
+    startPanY: 0,
+    hasDragged: false,
+  });
 
   const connectedNodeIds = useMemo(() => getConnectedNodeIds(currentLocationId), [currentLocationId]);
+  const worldMapDataWarnings = useMemo(() => validateWorldMapData(), []);
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
   const selectedStatus = getNodeStatus(selectedNode, currentLocationId, connectedNodeIds);
-  const selectedRoute = getRouteBetween(currentLocationId, selectedNodeId);
+  const selectedPath = useMemo(
+    () => findPathBetweenNodes(currentLocationId, selectedNodeId),
+    [currentLocationId, selectedNodeId],
+  );
   const travelEnergy = TRAVEL_ENERGY_MAX;
-  const selectedTravelCost = getTravelCost(selectedRoute?.dangerLevel);
-  const hasEnoughTravelEnergy = selectedTravelCost === 0 || selectedTravelCost <= travelEnergy;
+  const selectedTravelCost = selectedPath ? getTravelPathCost(selectedPath) : null;
+  const selectedPathDangerLevel = selectedPath ? getTravelPathDangerLevel(selectedPath) : null;
+  const hasPathToSelectedNode = Boolean(selectedPath);
+  const hasEnoughTravelEnergy = selectedTravelCost === null || selectedTravelCost <= travelEnergy;
   const canTravel = Boolean(
     save &&
       !travelingTo &&
       selectedNodeId !== currentLocationId &&
       selectedNode.unlocked &&
-      selectedRoute &&
+      selectedPath &&
       hasEnoughTravelEnergy,
   );
 
+  useEffect(() => {
+    if (worldMapDataWarnings.length > 0) {
+      console.warn("WorldMap data warnings:", worldMapDataWarnings);
+    }
+  }, [worldMapDataWarnings]);
+
+  const updateZoom = (nextZoom: number) => {
+    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
+  };
+
+  const handleZoomIn = () => updateZoom(zoom + ZOOM_STEP);
+  const handleZoomOut = () => updateZoom(zoom - ZOOM_STEP);
+  const handleResetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleMapPointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPanX: pan.x,
+      startPanY: pan.y,
+      hasDragged: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+  };
+
+  const handleMapPointerMove = (event: PointerEvent<HTMLElement>) => {
+    const dragState = dragStateRef.current;
+
+    if (!isDragging || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    const movedDistance = Math.hypot(deltaX, deltaY);
+
+    if (movedDistance > DRAG_THRESHOLD_PX) {
+      dragState.hasDragged = true;
+    }
+
+    if (dragState.hasDragged) {
+      setPan({ x: dragState.startPanX + deltaX, y: dragState.startPanY + deltaY });
+    }
+  };
+
+  const handleMapPointerEnd = (event: PointerEvent<HTMLElement>) => {
+    const dragState = dragStateRef.current;
+
+    if (dragState.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    setIsDragging(false);
+    window.setTimeout(() => {
+      dragStateRef.current.hasDragged = false;
+    }, 0);
+  };
+
+  const handleMapWheel = (event: WheelEvent<HTMLElement>) => {
+    event.preventDefault();
+    updateZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+  };
+
   const handleNodeSelect = (nodeId: WorldMapNodeId) => {
-    if (travelingTo) {
+    if (travelingTo || dragStateRef.current.hasDragged) {
       return;
     }
 
@@ -140,8 +232,28 @@ export function WorldMap({
     setArrivalMessage("");
   };
 
+  const handleNodePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    dragStateRef.current.hasDragged = false;
+  };
+
+  const handleNodeClick = (event: MouseEvent<HTMLButtonElement>, nodeId: WorldMapNodeId) => {
+    event.stopPropagation();
+    handleNodeSelect(nodeId);
+  };
+
+  const handleNodeKeyDown = (event: KeyboardEvent<HTMLButtonElement>, nodeId: WorldMapNodeId) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    handleNodeSelect(nodeId);
+  };
+
   const handleTravel = () => {
-    if (!save || !canTravel || !selectedRoute) {
+    if (!save || !canTravel || !selectedPath) {
       return;
     }
 
@@ -164,7 +276,7 @@ export function WorldMap({
       setSelectedNodeId(destination.id);
       setTravelingTo(null);
       setArrivalMessage(
-        selectedRoute.dangerLevel > 0
+        getTravelPathDangerLevel(selectedPath) > 0
           ? `${t("worldMapArrived")} ${translateMapKey(destination.titleKey)}. ${t("worldMapDangerNote")}`
           : `${t("worldMapArrived")} ${translateMapKey(destination.titleKey)}.`,
       );
@@ -239,90 +351,113 @@ export function WorldMap({
             </button>
           </nav>
 
-          <section className="world-map-layout" aria-label={t("worldMapTitle")}>
-            <div className="world-map-background" aria-hidden="true">
-              <img
-                src={WORLD_MAP_ASSET_PATH}
-                alt=""
-                onError={(event) => {
-                  event.currentTarget.hidden = true;
-                }}
-              />
-            </div>
-            <div className="world-map-board__mist" aria-hidden="true" />
-            <svg className="world-map-routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              {worldMapRoutes.map((route) => {
-                const from = getWorldMapNodeById(route.from);
-                const to = getWorldMapNodeById(route.to);
-                const midX = (from.x + to.x) / 2;
-                const midY = (from.y + to.y) / 2 - 5;
-                const isCurrentRoute = route.from === currentLocationId || route.to === currentLocationId;
-                const isLockedRoute = !from.unlocked || !to.unlocked;
+          <section
+            className={["world-map-viewport", isDragging ? "world-map-viewport--dragging" : ""]
+              .filter(Boolean)
+              .join(" ")}
+            aria-label={t("worldMapTitle")}
+            onPointerDown={handleMapPointerDown}
+            onPointerMove={handleMapPointerMove}
+            onPointerUp={handleMapPointerEnd}
+            onPointerCancel={handleMapPointerEnd}
+            onPointerLeave={handleMapPointerEnd}
+            onWheel={handleMapWheel}
+          >
+            <div
+              className="world-map-canvas"
+              style={{
+                transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
+              }}
+            >
+              <div className="world-map-background" aria-hidden="true">
+                <img
+                  src={WORLD_MAP_ASSET_PATH}
+                  alt=""
+                  draggable={false}
+                  onError={(event) => {
+                    event.currentTarget.hidden = true;
+                  }}
+                />
+              </div>
+              <div className="world-map-board__mist" aria-hidden="true" />
+
+              {worldMapNodes.map((node) => {
+                const status = getNodeStatus(node, currentLocationId, connectedNodeIds);
+                const statusClass = getStatusClass(status);
+                const isSelected = node.id === selectedNodeId;
+                const title = translateMapKey(node.titleKey);
+                const hasMapIcon = Boolean(node.iconType);
+                const isRoadPointIcon = node.iconType === "road_point";
+                const markerClassName = isRoadPointIcon
+                  ? "world-map-road-point-icon"
+                  : hasMapIcon
+                    ? "world-map-icon"
+                    : "world-map-road-marker";
 
                 return (
-                  <path
-                    key={`${route.from}-${route.to}`}
+                  <button
+                    key={node.id}
+                    type="button"
                     className={[
-                      "world-map-route",
-                      isCurrentRoute ? "world-map-route--current" : "",
-                      isLockedRoute ? "world-map-route--locked" : "",
+                      "world-map-node",
+                      `world-map-node--${node.type}`,
+                      `world-map-node--${statusClass}`,
+                      node.type === "road_point" ? "world-map-node--road-point" : "",
+                      !hasMapIcon || isRoadPointIcon ? "world-map-node--minor" : "",
+                      isSelected ? "world-map-node--selected" : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    d={`M ${from.x} ${from.y} Q ${midX} ${midY} ${to.x} ${to.y}`}
-                  />
+                    style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                    role="button"
+                    tabIndex={0}
+                    onPointerDown={handleNodePointerDown}
+                    onClick={(event) => handleNodeClick(event, node.id)}
+                    onKeyDown={(event) => handleNodeKeyDown(event, node.id)}
+                    aria-label={`${title}: ${getStatusLabel(status)}`}
+                    aria-disabled={Boolean(travelingTo)}
+                  >
+                    <span className={markerClassName}>
+                      {node.iconType ? (
+                        <img
+                          src={worldMapIconAssets[node.iconType]}
+                          alt=""
+                          draggable={false}
+                          onError={(event) => {
+                            event.currentTarget.hidden = true;
+                          }}
+                        />
+                      ) : null}
+                      {hasMapIcon && !isRoadPointIcon ? <span className="map-fallback-icon">{node.icon}</span> : null}
+                    </span>
+                    <span className="world-map-node__label">{title}</span>
+                  </button>
                 );
               })}
-            </svg>
 
-            {worldMapNodes.map((node) => {
-              const status = getNodeStatus(node, currentLocationId, connectedNodeIds);
-              const statusClass = getStatusClass(status);
-              const isSelected = node.id === selectedNodeId;
-              const title = translateMapKey(node.titleKey);
-
-              return (
-                <button
-                  key={node.id}
-                  type="button"
-                  className={[
-                    "world-map-node",
-                    `world-map-node--${node.type}`,
-                    `world-map-node--${statusClass}`,
-                    isSelected ? "world-map-node--selected" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  style={{ left: `${node.x}%`, top: `${node.y}%` }}
-                  onClick={() => handleNodeSelect(node.id)}
-                  aria-label={`${title}: ${getStatusLabel(status)}`}
-                  aria-disabled={Boolean(travelingTo)}
-                >
-                  <span className="world-map-icon">
-                    <img
-                      src={worldMapIconAssets[node.iconType]}
-                      alt=""
-                      onError={(event) => {
-                        event.currentTarget.hidden = true;
-                      }}
-                    />
-                    <span className="map-fallback-icon">{node.icon}</span>
-                  </span>
-                  <span className="world-map-node__label">{title}</span>
-                </button>
-              );
-            })}
-
-            <div
-              className={["world-map-player-marker", travelingTo ? "world-map-player-marker--traveling" : ""]
-                .filter(Boolean)
-                .join(" ")}
-              style={{ left: `${markerPosition.x}%`, top: `${markerPosition.y}%` }}
-              aria-label={t("worldMapPlayerMarker")}
-            >
-              <span />
+              <div
+                className={["world-map-player-marker", travelingTo ? "world-map-player-marker--traveling" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ left: `${markerPosition.x}%`, top: `${markerPosition.y}%` }}
+                aria-label={t("worldMapPlayerMarker")}
+              >
+                <span />
+              </div>
             </div>
           </section>
+
+          <div className="world-map-zoom-controls" aria-label={t("worldMapZoomControls")}>
+            <button type="button" onClick={handleZoomIn} aria-label={t("worldMapZoomIn")}>
+              +
+            </button>
+            <button type="button" onClick={handleZoomOut} aria-label={t("worldMapZoomOut")}>
+              -
+            </button>
+            <button type="button" onClick={handleResetView} aria-label={t("worldMapZoomReset")}>
+              {t("worldMapZoomReset")}
+            </button>
+          </div>
 
           <aside className="world-map-ui-right" aria-live="polite">
             <p className="world-map-info__eyebrow">{t("traveler")}</p>
@@ -343,16 +478,19 @@ export function WorldMap({
                 </div>
                 <div>
                   <dt>{t("worldMapDangerLevel")}</dt>
-                  <dd>{selectedRoute ? selectedRoute.dangerLevel : "-"}</dd>
+                  <dd>{selectedPathDangerLevel ?? "-"}</dd>
                 </div>
                 <div>
                   <dt>{t("worldMapTravelCost")}</dt>
-                  <dd>{selectedRoute ? selectedTravelCost : "-"}</dd>
+                  <dd>{selectedTravelCost ?? "-"}</dd>
                 </div>
               </dl>
             </div>
 
-            {!hasEnoughTravelEnergy ? (
+            {!hasPathToSelectedNode ? (
+              <p className="world-map-info__warning">{t("worldMapPathNotFound")}</p>
+            ) : null}
+            {hasPathToSelectedNode && !hasEnoughTravelEnergy ? (
               <p className="world-map-info__warning">{t("worldMapNotEnoughEnergy")}</p>
             ) : null}
             {arrivalMessage ? <p className="world-map-info__arrival">{arrivalMessage}</p> : null}
