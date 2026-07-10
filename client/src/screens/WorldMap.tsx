@@ -4,6 +4,7 @@ import { FantasyButton } from "../components/FantasyButton";
 import { t, type TranslationKey } from "../i18n/i18n";
 import {
   getConnectedNodeIds,
+  getRouteBetween,
   getTravelPathCost,
   getTravelPathDangerLevel,
   getTravelPathTimeHours,
@@ -34,9 +35,11 @@ const WORLD_MAP_UI_PATH = "/assets/world-map/ui/";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
 const DEFAULT_DAY = 1;
 const DEFAULT_HOUR = 6;
-const MIN_TRAVEL_DELAY_MS = 800;
-const MAX_TRAVEL_DELAY_MS = 1500;
-const TRAVEL_DELAY_PER_HOUR_MS = 250;
+const MIN_TRAVEL_DELAY_MS = 900;
+const MAX_TRAVEL_DELAY_MS = 1800;
+const TRAVEL_DELAY_PER_HOUR_MS = 350;
+const DEFAULT_SEGMENT_TRAVEL_TIME_HOURS = 1;
+const DEFAULT_SEGMENT_ENERGY_COST = 10;
 const BASE_TRAVEL_MODE = "walking";
 const WALKING_SPEED_MULTIPLIER = 1;
 const MIN_ZOOM = 1;
@@ -126,6 +129,20 @@ function getTravelVisualDelayMs(travelTimeHours: number) {
   );
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function getSegmentEnergyCost(fromId: WorldMapNodeId, toId: WorldMapNodeId) {
+  return getRouteBetween(fromId, toId)?.energyCost ?? DEFAULT_SEGMENT_ENERGY_COST;
+}
+
+function getSegmentTravelTimeHours(fromId: WorldMapNodeId, toId: WorldMapNodeId) {
+  return getRouteBetween(fromId, toId)?.travelTimeHours ?? DEFAULT_SEGMENT_TRAVEL_TIME_HOURS;
+}
+
 export function WorldMap({
   saveVersion,
   onOpenEvent,
@@ -152,6 +169,8 @@ export function WorldMap({
   const [currentHour, setCurrentHour] = useState(save?.currentHour ?? DEFAULT_HOUR);
   const [travelEnergy, setTravelEnergy] = useState(save?.travelEnergy?.currentEnergy ?? initialMaxEnergy);
   const [travelEnergyMax, setTravelEnergyMax] = useState(initialMaxEnergy);
+  const [travelPath, setTravelPath] = useState<WorldMapNodeId[]>([]);
+  const [currentTravelStepIndex, setCurrentTravelStepIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -182,13 +201,21 @@ export function WorldMap({
   const selectedTravelTimeHours = selectedPath ? getTravelPathTimeHours(selectedPath) : null;
   const hasPathToSelectedNode = Boolean(selectedPath);
   const hasEnoughTravelEnergy = selectedTravelCost === null || selectedTravelCost <= travelEnergy;
+  const firstSegmentEnergyCost =
+    selectedPath && selectedPath.length > 1 ? getSegmentEnergyCost(selectedPath[0], selectedPath[1]) : null;
+  const hasEnoughEnergyForFirstSegment = firstSegmentEnergyCost === null || firstSegmentEnergyCost <= travelEnergy;
+  const shouldShowNoEnergyWarning =
+    hasPathToSelectedNode && selectedNodeId !== currentLocationId && !hasEnoughEnergyForFirstSegment;
+  const shouldShowPartialEnergyWarning =
+    hasPathToSelectedNode && !hasEnoughTravelEnergy && hasEnoughEnergyForFirstSegment;
   const canTravel = Boolean(
     save &&
       !travelingTo &&
       selectedNodeId !== currentLocationId &&
       selectedNode.unlocked &&
       selectedPath &&
-      hasEnoughTravelEnergy,
+      selectedPath.length > 1 &&
+      hasEnoughEnergyForFirstSegment,
   );
 
   useEffect(() => {
@@ -296,35 +323,61 @@ export function WorldMap({
     handleNodeSelect(nodeId);
   };
 
-  const handleTravel = () => {
-    if (!save || !canTravel || !selectedPath) {
+  const handleTravel = async () => {
+    if (!save || travelingTo || !selectedPath || selectedPath.length <= 1) {
       return;
     }
 
-    const destination = getWorldMapNodeById(selectedNodeId);
-    const travelCost = selectedTravelCost ?? getTravelPathCost(selectedPath);
-    const travelTimeHours = selectedTravelTimeHours ?? getTravelPathTimeHours(selectedPath);
-    const visualDelayMs = getTravelVisualDelayMs(travelTimeHours);
     setTravelingTo(selectedNodeId);
+    setTravelPath(selectedPath);
+    setCurrentTravelStepIndex(0);
     setArrivalMessage(t("worldMapTraveling"));
 
-    window.requestAnimationFrame(() => {
-      setMarkerPosition({ x: destination.x, y: destination.y });
-    });
+    let stepDay = currentDay;
+    let stepHour = currentHour;
+    let stepEnergy = travelEnergy;
+    let stepMaxEnergy = travelEnergyMax;
+    let lastReachedNodeId = currentLocationId;
 
-    window.setTimeout(() => {
+    for (let index = 0; index < selectedPath.length - 1; index += 1) {
+      const fromId = selectedPath[index];
+      const toId = selectedPath[index + 1];
+      const segmentEnergyCost = getSegmentEnergyCost(fromId, toId);
+      const segmentTravelTimeHours = getSegmentTravelTimeHours(fromId, toId);
+
+      if (stepEnergy < segmentEnergyCost) {
+        setArrivalMessage(t("worldMapTravelStoppedNoEnergy"));
+        break;
+      }
+
+      const destination = getWorldMapNodeById(toId);
+      const visualDelayMs = getTravelVisualDelayMs(segmentTravelTimeHours);
+      setCurrentTravelStepIndex(index + 1);
+
+      window.requestAnimationFrame(() => {
+        setMarkerPosition({ x: destination.x, y: destination.y });
+      });
+
+      await wait(visualDelayMs);
+
       const latestSave = loadGame();
-      const latestDay = latestSave?.currentDay ?? currentDay;
-      const latestHour = latestSave?.currentHour ?? currentHour;
-      const latestMaxEnergy = latestSave?.travelEnergy?.maxEnergy ?? travelEnergyMax;
-      const latestEnergy = latestSave?.travelEnergy?.currentEnergy ?? travelEnergy;
-      const nextEnergy = Math.max(0, latestEnergy - travelCost);
-      const nextTime = advanceWorldTime(latestDay, latestHour, travelTimeHours);
+      const latestDay = latestSave?.currentDay ?? stepDay;
+      const latestHour = latestSave?.currentHour ?? stepHour;
+      const latestMaxEnergy = latestSave?.travelEnergy?.maxEnergy ?? stepMaxEnergy;
+      const latestEnergy = latestSave?.travelEnergy?.currentEnergy ?? stepEnergy;
+      const nextEnergy = Math.max(0, latestEnergy - segmentEnergyCost);
+      const nextTime = advanceWorldTime(latestDay, latestHour, segmentTravelTimeHours);
+
+      stepDay = nextTime.day;
+      stepHour = nextTime.hour;
+      stepEnergy = nextEnergy;
+      stepMaxEnergy = latestMaxEnergy;
+      lastReachedNodeId = toId;
 
       if (latestSave) {
         saveGame({
           ...latestSave,
-          currentLocationId: destination.id,
+          currentLocationId: toId,
           currentDay: nextTime.day,
           currentHour: nextTime.hour,
           travelEnergy: {
@@ -339,15 +392,23 @@ export function WorldMap({
       setCurrentHour(nextTime.hour);
       setTravelEnergy(nextEnergy);
       setTravelEnergyMax(latestMaxEnergy);
-      setCurrentLocationId(destination.id);
-      setSelectedNodeId(destination.id);
-      setTravelingTo(null);
+      setCurrentLocationId(toId);
+    }
+
+    const lastReachedNode = getWorldMapNodeById(lastReachedNodeId);
+    const didReachTarget = lastReachedNodeId === selectedNodeId;
+    setSelectedNodeId(didReachTarget ? lastReachedNodeId : selectedNodeId);
+    setTravelingTo(null);
+    setTravelPath([]);
+    setCurrentTravelStepIndex(0);
+
+    if (didReachTarget) {
       setArrivalMessage(
         getTravelPathDangerLevel(selectedPath) > 0
-          ? `${t("worldMapArrived")} ${translateMapKey(destination.titleKey)}. ${t("worldMapDangerNote")}`
-          : `${t("worldMapArrived")} ${translateMapKey(destination.titleKey)}.`,
+          ? `${t("worldMapArrived")} ${translateMapKey(lastReachedNode.titleKey)}. ${t("worldMapDangerNote")}`
+          : `${t("worldMapArrived")} ${translateMapKey(lastReachedNode.titleKey)}.`,
       );
-    }, visualDelayMs);
+    }
   };
 
   return (
@@ -570,14 +631,41 @@ export function WorldMap({
                   <dt>{t("worldMapTravelCost")}</dt>
                   <dd>{selectedTravelCost ?? "-"}</dd>
                 </div>
+                <div>
+                  <dt>{t("worldMapTravelTime")}</dt>
+                  <dd>{selectedTravelTimeHours ?? "-"}</dd>
+                </div>
+                {travelingTo && travelPath.length > 1 ? (
+                  <>
+                    <div>
+                      <dt>{t("worldMapPathProgress")}</dt>
+                      <dd>
+                        {currentTravelStepIndex}/{travelPath.length - 1}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{t("worldMapNextPoint")}</dt>
+                      <dd>
+                        {translateMapKey(
+                          getWorldMapNodeById(
+                            travelPath[Math.min(currentTravelStepIndex, travelPath.length - 1)],
+                          ).titleKey,
+                        )}
+                      </dd>
+                    </div>
+                  </>
+                ) : null}
               </dl>
             </div>
 
             {!hasPathToSelectedNode ? (
               <p className="world-map-info__warning">{t("worldMapPathNotFound")}</p>
             ) : null}
-            {hasPathToSelectedNode && !hasEnoughTravelEnergy ? (
+            {shouldShowNoEnergyWarning ? (
               <p className="world-map-info__warning">{t("worldMapNotEnoughEnergy")}</p>
+            ) : null}
+            {shouldShowPartialEnergyWarning ? (
+              <p className="world-map-info__warning">{t("worldMapPartialEnergyWarning")}</p>
             ) : null}
             {arrivalMessage ? <p className="world-map-info__arrival">{arrivalMessage}</p> : null}
           </aside>

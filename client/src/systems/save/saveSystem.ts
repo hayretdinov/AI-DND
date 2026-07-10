@@ -61,8 +61,8 @@ function normalizeTravelEnergy(data: Partial<GameSave>): TravelEnergyState {
   return { currentEnergy, maxEnergy, lastRestDay };
 }
 
-function normalizeSave(data: GameSave): GameSave {
-  return {
+function normalizeSave(data: GameSave) {
+  const normalizedSave: GameSave = {
     ...data,
     currentDay: Number.isFinite(data.currentDay) ? data.currentDay : DEFAULT_DAY,
     currentHour: Number.isFinite(data.currentHour) ? data.currentHour : DEFAULT_HOUR,
@@ -72,6 +72,15 @@ function normalizeSave(data: GameSave): GameSave {
       portraitUrl: data.player.portraitUrl || getFallbackPortraitUrl(data.player),
     },
   };
+  const changed =
+    normalizedSave.currentDay !== data.currentDay ||
+    normalizedSave.currentHour !== data.currentHour ||
+    normalizedSave.travelEnergy?.currentEnergy !== data.travelEnergy?.currentEnergy ||
+    normalizedSave.travelEnergy?.maxEnergy !== data.travelEnergy?.maxEnergy ||
+    normalizedSave.travelEnergy?.lastRestDay !== data.travelEnergy?.lastRestDay ||
+    normalizedSave.player.portraitUrl !== data.player.portraitUrl;
+
+  return { save: normalizedSave, changed };
 }
 
 export function saveGame(data: GameSave) {
@@ -81,7 +90,7 @@ export function saveGame(data: GameSave) {
     return;
   }
 
-  storage.setItem(SAVE_KEY, JSON.stringify(normalizeSave(data)));
+  storage.setItem(SAVE_KEY, JSON.stringify(normalizeSave(data).save));
 }
 
 export function loadGame(): GameSave | null {
@@ -103,13 +112,13 @@ export function loadGame(): GameSave | null {
       return null;
     }
 
-    const normalizedSave = normalizeSave(parsed);
+    const normalized = normalizeSave(parsed);
 
-    if (normalizedSave.player.portraitUrl !== parsed.player.portraitUrl) {
-      storage.setItem(SAVE_KEY, JSON.stringify(normalizedSave));
+    if (normalized.changed) {
+      storage.setItem(SAVE_KEY, JSON.stringify(normalized.save));
     }
 
-    return normalizedSave;
+    return normalized.save;
   } catch {
     return null;
   }

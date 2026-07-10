@@ -532,3 +532,24 @@ Update date: 2026-07-10
 - Travel now uses a walking delay based on path `travelTimeHours`, clamped between 800ms and 1500ms.
 - Added a TODO hook for future mounts, vehicles, ships, portals, and other travel speed modifiers.
 - Fullscreen map, pan, zoom, point selection, and route pathfinding remain in place.
+
+## World Map step-by-step travel
+
+Update date: 2026-07-10
+
+- Travel now follows the full path returned by `findPathBetweenNodes`, including intermediate road points.
+- The hero stops visually and logically on each intermediate node before continuing.
+- Energy and game time are spent per segment instead of once at the final destination.
+- If energy runs out mid-route, the hero remains on the last reached node and travel stops.
+- Walking movement now uses a per-segment delay clamped between 900ms and 1800ms.
+- The existing TODO for future mounts, vehicles, ships, portals, and other travel modifiers remains in place.
+- The map marker portrait is larger and cropped toward the hero's head.
+
+## World Map travel polish
+
+Update date: 2026-07-10
+
+- Energy warnings now distinguish no energy for the first segment from partial energy for a longer route.
+- Travel remains available when the hero has enough energy for at least the first segment.
+- Removed the no-op `selectedNodeId` assignment after step-by-step travel.
+- Old saves are safely written back after migration of portrait, travel energy, and world time fields.
