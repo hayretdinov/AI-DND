@@ -29,15 +29,19 @@ type WorldMapProps = {
 };
 
 type NodeStatus = "current" | "available" | "locked" | "distant";
+type ActiveTravelSegment = {
+  fromId: WorldMapNodeId;
+  toId: WorldMapNodeId;
+};
 
 const WORLD_MAP_ASSET_PATH = "/assets/world-map/world_map_main.png";
 const WORLD_MAP_UI_PATH = "/assets/world-map/ui/";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
 const DEFAULT_DAY = 1;
 const DEFAULT_HOUR = 6;
-const MIN_TRAVEL_DELAY_MS = 900;
-const MAX_TRAVEL_DELAY_MS = 1800;
-const TRAVEL_DELAY_PER_HOUR_MS = 350;
+const WALKING_SEGMENT_MIN_DELAY_MS = 15000;
+const WALKING_SEGMENT_MAX_DELAY_MS = 60000;
+const WALKING_DELAY_PER_TRAVEL_HOUR_MS = 5000;
 const DEFAULT_SEGMENT_TRAVEL_TIME_HOURS = 1;
 const DEFAULT_SEGMENT_ENERGY_COST = 10;
 const BASE_TRAVEL_MODE = "walking";
@@ -119,13 +123,17 @@ function advanceWorldTime(day: number, hour: number, addedHours: number) {
   };
 }
 
-function getTravelVisualDelayMs(travelTimeHours: number) {
-  // TODO: apply mounts, vehicles, ships, portals, and other travel speed modifiers here.
+function getTravelVisualDelayMs(travelTimeHours?: number) {
+  // TODO: reduce visualDelayMs with mounts, vehicles, ships, portals, and other travel speed modifiers.
+  if (!Number.isFinite(travelTimeHours)) {
+    return WALKING_SEGMENT_MIN_DELAY_MS;
+  }
+
   const travelModeMultiplier = BASE_TRAVEL_MODE === "walking" ? WALKING_SPEED_MULTIPLIER : WALKING_SPEED_MULTIPLIER;
   return clamp(
-    travelTimeHours * TRAVEL_DELAY_PER_HOUR_MS * travelModeMultiplier,
-    MIN_TRAVEL_DELAY_MS,
-    MAX_TRAVEL_DELAY_MS,
+    Number(travelTimeHours) * WALKING_DELAY_PER_TRAVEL_HOUR_MS * travelModeMultiplier,
+    WALKING_SEGMENT_MIN_DELAY_MS,
+    WALKING_SEGMENT_MAX_DELAY_MS,
   );
 }
 
@@ -141,6 +149,21 @@ function getSegmentEnergyCost(fromId: WorldMapNodeId, toId: WorldMapNodeId) {
 
 function getSegmentTravelTimeHours(fromId: WorldMapNodeId, toId: WorldMapNodeId) {
   return getRouteBetween(fromId, toId)?.travelTimeHours ?? DEFAULT_SEGMENT_TRAVEL_TIME_HOURS;
+}
+
+function getTravelSegmentPoints(segment: ActiveTravelSegment | null) {
+  if (!segment) {
+    return [];
+  }
+
+  const fromNode = getWorldMapNodeById(segment.fromId);
+  const toNode = getWorldMapNodeById(segment.toId);
+  const route = getRouteBetween(segment.fromId, segment.toId);
+  return [
+    { x: fromNode.x, y: fromNode.y },
+    ...(route?.pathPoints ?? []),
+    { x: toNode.x, y: toNode.y },
+  ];
 }
 
 export function WorldMap({
@@ -171,6 +194,7 @@ export function WorldMap({
   const [travelEnergyMax, setTravelEnergyMax] = useState(initialMaxEnergy);
   const [travelPath, setTravelPath] = useState<WorldMapNodeId[]>([]);
   const [currentTravelStepIndex, setCurrentTravelStepIndex] = useState(0);
+  const [activeTravelSegment, setActiveTravelSegment] = useState<ActiveTravelSegment | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -192,6 +216,13 @@ export function WorldMap({
   const playerInitial = save?.player.name.slice(0, 1).toUpperCase() || "?";
   const shouldShowPlayerPortrait = Boolean(playerPortraitUrl) && !isPlayerPortraitFailed;
   const selectedStatus = getNodeStatus(selectedNode, currentLocationId, connectedNodeIds);
+  const activeTravelSegmentPoints = getTravelSegmentPoints(activeTravelSegment);
+  const activeTravelSegmentLabel =
+    activeTravelSegment === null
+      ? ""
+      : `${translateMapKey(getWorldMapNodeById(activeTravelSegment.fromId).titleKey)} -> ${translateMapKey(
+          getWorldMapNodeById(activeTravelSegment.toId).titleKey,
+        )}`;
   const selectedPath = useMemo(
     () => findPathBetweenNodes(currentLocationId, selectedNodeId),
     [currentLocationId, selectedNodeId],
@@ -227,6 +258,20 @@ export function WorldMap({
   useEffect(() => {
     setIsPlayerPortraitFailed(false);
   }, [playerPortraitUrl]);
+
+  useEffect(() => {
+    if (!playerPortraitUrl) {
+      console.warn("WorldMap player portraitUrl is missing. Visible fallback will be shown.");
+    }
+  }, [playerPortraitUrl]);
+
+  const handlePlayerPortraitError = () => {
+    if (!isPlayerPortraitFailed) {
+      console.warn("WorldMap player portrait image failed to load. Visible fallback will be shown.", playerPortraitUrl);
+    }
+
+    setIsPlayerPortraitFailed(true);
+  };
 
   const updateZoom = (nextZoom: number) => {
     setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
@@ -344,14 +389,17 @@ export function WorldMap({
       const toId = selectedPath[index + 1];
       const segmentEnergyCost = getSegmentEnergyCost(fromId, toId);
       const segmentTravelTimeHours = getSegmentTravelTimeHours(fromId, toId);
+      const segmentVisualTimeHours = getRouteBetween(fromId, toId)?.travelTimeHours;
 
       if (stepEnergy < segmentEnergyCost) {
+        setActiveTravelSegment(null);
         setArrivalMessage(t("worldMapTravelStoppedNoEnergy"));
         break;
       }
 
       const destination = getWorldMapNodeById(toId);
-      const visualDelayMs = getTravelVisualDelayMs(segmentTravelTimeHours);
+      const visualDelayMs = getTravelVisualDelayMs(segmentVisualTimeHours);
+      setActiveTravelSegment({ fromId, toId });
       setCurrentTravelStepIndex(index + 1);
 
       window.requestAnimationFrame(() => {
@@ -401,6 +449,7 @@ export function WorldMap({
     setTravelingTo(null);
     setTravelPath([]);
     setCurrentTravelStepIndex(0);
+    setActiveTravelSegment(null);
 
     if (didReachTarget) {
       setArrivalMessage(
@@ -433,18 +482,26 @@ export function WorldMap({
           </div>
 
           <nav className="world-map-ui-left" aria-label={t("worldMapNavigation")}>
-            <div className="player-portrait-frame" aria-label={t("worldMapPlayerPortrait")}>
+            <div
+              className="world-map-player-portrait player-portrait-frame"
+              aria-label={t("worldMapPlayerPortrait")}
+            >
               {shouldShowPlayerPortrait ? (
                 <img
-                  className="player-portrait-frame__image"
+                  className="world-map-player-portrait-image player-portrait-frame__image"
                   src={playerPortraitUrl}
                   alt=""
-                  onError={() => setIsPlayerPortraitFailed(true)}
+                  onError={handlePlayerPortraitError}
                 />
               ) : null}
-              <span className="player-portrait-frame__fallback">{playerInitial}</span>
+              <span
+                className="world-map-player-portrait-fallback player-portrait-frame__fallback"
+                aria-label={t("worldMapPortraitMissing")}
+              >
+                {playerInitial}
+              </span>
               <img
-                className="player-portrait-frame__frame"
+                className="world-map-player-portrait-frame player-portrait-frame__frame"
                 src={`${WORLD_MAP_UI_PATH}player_portrait_frame.png`}
                 alt=""
                 onError={(event) => {
@@ -518,6 +575,34 @@ export function WorldMap({
               </div>
               <div className="world-map-board__mist" aria-hidden="true" />
 
+              {travelingTo && activeTravelSegment && activeTravelSegmentPoints.length > 1 ? (
+                <svg
+                  className="world-map-travel-arrow-layer"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <marker
+                      id="world-map-travel-arrow-head"
+                      markerWidth="8"
+                      markerHeight="8"
+                      refX="7"
+                      refY="4"
+                      orient="auto"
+                      markerUnits="strokeWidth"
+                    >
+                      <path className="world-map-travel-arrow-head" d="M 0 0 L 8 4 L 0 8 z" />
+                    </marker>
+                  </defs>
+                  <polyline
+                    className="world-map-travel-arrow-path"
+                    points={activeTravelSegmentPoints.map((point) => `${point.x},${point.y}`).join(" ")}
+                    markerEnd="url(#world-map-travel-arrow-head)"
+                  />
+                </svg>
+              ) : null}
+
               {worldMapNodes.map((node) => {
                 const status = getNodeStatus(node, currentLocationId, connectedNodeIds);
                 const statusClass = getStatusClass(status);
@@ -586,7 +671,7 @@ export function WorldMap({
                     src={playerPortraitUrl}
                     alt=""
                     draggable={false}
-                    onError={() => setIsPlayerPortraitFailed(true)}
+                    onError={handlePlayerPortraitError}
                   />
                 ) : null}
                 <span className="world-map-player-marker-fallback">{playerInitial}</span>
@@ -637,6 +722,12 @@ export function WorldMap({
                 </div>
                 {travelingTo && travelPath.length > 1 ? (
                   <>
+                    {activeTravelSegment ? (
+                      <div>
+                        <dt>{t("worldMapTravelSegment")}</dt>
+                        <dd>{activeTravelSegmentLabel}</dd>
+                      </div>
+                    ) : null}
                     <div>
                       <dt>{t("worldMapPathProgress")}</dt>
                       <dd>
@@ -644,7 +735,7 @@ export function WorldMap({
                       </dd>
                     </div>
                     <div>
-                      <dt>{t("worldMapNextPoint")}</dt>
+                      <dt>{t("worldMapMovingToNextPoint")}</dt>
                       <dd>
                         {translateMapKey(
                           getWorldMapNodeById(

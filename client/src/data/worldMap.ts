@@ -62,6 +62,7 @@ export type MapRoute = {
   dangerLevel: number;
   travelTimeHours: number;
   energyCost: number;
+  pathPoints?: Array<{ x: number; y: number }>;
 };
 
 export const WORLD_MAP_START_NODE_ID: WorldMapNodeId = "western_great_city";

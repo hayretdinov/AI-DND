@@ -553,3 +553,24 @@ Update date: 2026-07-10
 - Travel remains available when the hero has enough energy for at least the first segment.
 - Removed the no-op `selectedNodeId` assignment after step-by-step travel.
 - Old saves are safely written back after migration of portrait, travel energy, and world time fields.
+
+## World Map slow segmented travel arrow
+
+Update date: 2026-07-10
+
+- Walking travel is slower: each segment uses `segmentTravelTimeHours * 700`, clamped between 1800ms and 3200ms, with a 2200ms fallback.
+- Added `activeTravelSegment` for the current `fromId -> toId` travel step.
+- While travelling, the map renders a dashed arrow only to the next point, inside `world-map-canvas`.
+- The arrow updates after each reached point and disappears after arrival or an energy stop.
+- The top-left hero portrait uses layered portrait, fallback, and frame elements so a missing image shows the character initial instead of an empty frame.
+- Fullscreen map, pan, zoom, point selection, routes, and step-by-step energy spending remain in place.
+
+## World Map walking speed slowed
+
+Update date: 2026-07-11
+
+- Minimum visual delay for each walking segment is now 15 seconds.
+- Every intermediate point still requires its own segment delay before the hero advances.
+- The dashed travel arrow remains active on the current segment while the delay runs.
+- Added explicit walking delay constants for future mounts, vehicles, ships, and portals.
+- Fullscreen map, pan, zoom, point selection, routes, activeTravelSegment, and per-segment energy spending remain in place.
