@@ -27,6 +27,7 @@ export type PlayerCharacter = {
   gender: PlayerGender;
   characterClass: PlayerClass;
   appearance: PlayerAppearance;
+  portraitUrl: string;
   attributes: Attributes;
   derivedStats: DerivedStats;
   createdAt: string;

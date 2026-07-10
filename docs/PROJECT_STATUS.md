@@ -509,3 +509,14 @@ Update date: 2026-07-10
 - `road_point` nodes now use the dedicated `road_point` icon type.
 - Road point markers render as smaller clickable map icons.
 - Unavailable icons are more visible, while selected, current, and available states remain prominent.
+
+## World Map player portrait marker
+
+Update date: 2026-07-10
+
+- The selected character portrait is saved as `player.portraitUrl`.
+- WorldMap shows the saved portrait inside the top-left character frame.
+- The current player position on the map uses the same portrait in a circular marker.
+- The marker stays inside `world-map-canvas` and moves with the current location during Travel.
+- Old saves without `portraitUrl` are normalized with a safe fallback portrait path.
+- Missing or failed portrait images fall back to the character initial.

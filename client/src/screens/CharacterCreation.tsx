@@ -336,6 +336,8 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
       return;
     }
 
+    const portraitUrl = getCharacterImage(race, gender, equipment);
+
     saveGame({
       player: {
         id: createCharacterId(),
@@ -345,6 +347,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         gender,
         characterClass,
         appearance: APPEARANCE_BY_EQUIPMENT[equipment],
+        portraitUrl,
         attributes,
         derivedStats,
         createdAt: new Date().toISOString(),

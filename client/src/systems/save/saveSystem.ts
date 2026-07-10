@@ -16,6 +16,31 @@ function getStorage() {
   return window.localStorage;
 }
 
+function getFallbackPortraitUrl(player: PlayerCharacter) {
+  if (!player.race || !player.gender || !player.appearance) {
+    return "";
+  }
+
+  const visualByAppearance: Record<PlayerCharacter["appearance"], string> = {
+    wanderer: "starting",
+    ash: "clothing",
+    iron: "armor",
+  };
+  const visual = visualByAppearance[player.appearance] ?? "starting";
+
+  return `/assets/characters/player/${player.race}/${player.gender}/${player.race}-${player.gender}-${visual}.png`;
+}
+
+function normalizeSave(data: GameSave): GameSave {
+  return {
+    ...data,
+    player: {
+      ...data.player,
+      portraitUrl: data.player.portraitUrl || getFallbackPortraitUrl(data.player),
+    },
+  };
+}
+
 export function saveGame(data: GameSave) {
   const storage = getStorage();
 
@@ -23,7 +48,7 @@ export function saveGame(data: GameSave) {
     return;
   }
 
-  storage.setItem(SAVE_KEY, JSON.stringify(data));
+  storage.setItem(SAVE_KEY, JSON.stringify(normalizeSave(data)));
 }
 
 export function loadGame(): GameSave | null {
@@ -41,7 +66,17 @@ export function loadGame(): GameSave | null {
 
   try {
     const parsed = JSON.parse(rawSave) as GameSave;
-    return parsed.player ? parsed : null;
+    if (!parsed.player) {
+      return null;
+    }
+
+    const normalizedSave = normalizeSave(parsed);
+
+    if (normalizedSave.player.portraitUrl !== parsed.player.portraitUrl) {
+      storage.setItem(SAVE_KEY, JSON.stringify(normalizedSave));
+    }
+
+    return normalizedSave;
   } catch {
     return null;
   }

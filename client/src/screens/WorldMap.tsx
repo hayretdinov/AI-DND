@@ -119,6 +119,7 @@ export function WorldMap({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isPlayerPortraitFailed, setIsPlayerPortraitFailed] = useState(false);
   const dragStateRef = useRef({
     pointerId: -1,
     startX: 0,
@@ -132,6 +133,9 @@ export function WorldMap({
   const worldMapDataWarnings = useMemo(() => validateWorldMapData(), []);
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
+  const playerPortraitUrl = save?.player.portraitUrl ?? "";
+  const playerInitial = save?.player.name.slice(0, 1).toUpperCase() || "?";
+  const shouldShowPlayerPortrait = Boolean(playerPortraitUrl) && !isPlayerPortraitFailed;
   const selectedStatus = getNodeStatus(selectedNode, currentLocationId, connectedNodeIds);
   const selectedPath = useMemo(
     () => findPathBetweenNodes(currentLocationId, selectedNodeId),
@@ -156,6 +160,10 @@ export function WorldMap({
       console.warn("WorldMap data warnings:", worldMapDataWarnings);
     }
   }, [worldMapDataWarnings]);
+
+  useEffect(() => {
+    setIsPlayerPortraitFailed(false);
+  }, [playerPortraitUrl]);
 
   const updateZoom = (nextZoom: number) => {
     setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
@@ -305,15 +313,24 @@ export function WorldMap({
           </div>
 
           <nav className="world-map-ui-left" aria-label={t("worldMapNavigation")}>
-            <div className="player-portrait-frame" aria-label={save.player.name}>
+            <div className="player-portrait-frame" aria-label={t("worldMapPlayerPortrait")}>
+              {shouldShowPlayerPortrait ? (
+                <img
+                  className="player-portrait-frame__image"
+                  src={playerPortraitUrl}
+                  alt=""
+                  onError={() => setIsPlayerPortraitFailed(true)}
+                />
+              ) : null}
+              <span className="player-portrait-frame__fallback">{playerInitial}</span>
               <img
+                className="player-portrait-frame__frame"
                 src={`${WORLD_MAP_UI_PATH}player_portrait_frame.png`}
                 alt=""
                 onError={(event) => {
                   event.currentTarget.hidden = true;
                 }}
               />
-              <span>{save.player.name.slice(0, 1).toUpperCase()}</span>
             </div>
             <button type="button" className="world-map-nav-button world-map-nav-button--active">
               <span className="map-fallback-icon">M</span>
@@ -442,7 +459,17 @@ export function WorldMap({
                 style={{ left: `${markerPosition.x}%`, top: `${markerPosition.y}%` }}
                 aria-label={t("worldMapPlayerMarker")}
               >
-                <span />
+                <span className="world-map-player-marker-ring" aria-hidden="true" />
+                {shouldShowPlayerPortrait ? (
+                  <img
+                    className="world-map-player-marker-image"
+                    src={playerPortraitUrl}
+                    alt=""
+                    draggable={false}
+                    onError={() => setIsPlayerPortraitFailed(true)}
+                  />
+                ) : null}
+                <span className="world-map-player-marker-fallback">{playerInitial}</span>
               </div>
             </div>
           </section>
