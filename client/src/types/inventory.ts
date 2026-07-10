@@ -2,10 +2,10 @@ export type InventoryCategory =
   | "all"
   | "equipped"
   | "backpack"
+  | "weapon"
   | "armor"
-  | "weapons"
-  | "consumables"
-  | "materials"
+  | "consumable"
+  | "material"
   | "quest"
   | "misc";
 
@@ -14,26 +14,44 @@ export type InventoryRarity = "common" | "uncommon" | "rare" | "epic" | "legenda
 export type EquipmentSlot =
   | "head"
   | "chest"
-  | "rightHand"
-  | "leftHand"
+  | "mainHand"
+  | "offHand"
   | "back"
-  | "accessory1"
-  | "accessory2"
+  | "amulet"
+  | "ring1"
+  | "ring2"
   | "belt"
-  | "bag";
+  | "bag"
+  | "gloves"
+  | "boots";
+
+export type ItemStats = Partial<Record<"attack" | "defense" | "evasion" | "blockChance", number>>;
 
 export type InventoryItem = {
   id: string;
+  templateId: string;
   nameKey: string;
   descriptionKey: string;
   category: Exclude<InventoryCategory, "all" | "equipped" | "backpack">;
   rarity: InventoryRarity;
-  value: number;
-  weight: number;
   quantity: number;
+  weight: number;
+  value: number;
   equippable: boolean;
   slot?: EquipmentSlot;
+  stats?: ItemStats;
   icon: string;
-  bonuses?: Partial<Record<"attack" | "defense" | "evasion" | "blockChance", number>>;
+  bonuses?: ItemStats;
+  isQuestItem?: boolean;
   questItem?: boolean;
+  createdAt: string;
+};
+
+export type EquipmentState = Partial<Record<EquipmentSlot, string>>;
+
+export type InventoryState = {
+  items: InventoryItem[];
+  equipment: EquipmentState;
+  gold: number;
+  maxCarryWeight: number;
 };

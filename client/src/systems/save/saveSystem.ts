@@ -1,5 +1,7 @@
 import type { PlayerCharacter } from "../../types/player";
 import type { WorldMapNodeId } from "../../data/worldMap";
+import { createDefaultInventoryState } from "../../data/inventoryMockData";
+import type { EquipmentSlot, InventoryItem, InventoryState } from "../../types/inventory";
 
 const SAVE_KEY = "ai-dnd-save";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
@@ -18,6 +20,7 @@ export type GameSave = {
   currentDay?: number;
   currentHour?: number;
   travelEnergy?: TravelEnergyState;
+  inventory?: InventoryState;
 };
 
 function getStorage() {
@@ -61,11 +64,118 @@ function normalizeTravelEnergy(data: Partial<GameSave>): TravelEnergyState {
   return { currentEnergy, maxEnergy, lastRestDay };
 }
 
+function normalizeEquipmentSlot(slot: string): EquipmentSlot | null {
+  const legacySlots: Record<string, EquipmentSlot> = {
+    accessory1: "ring1",
+    accessory2: "amulet",
+    leftHand: "offHand",
+    rightHand: "mainHand",
+  };
+  const normalizedSlot = legacySlots[slot] ?? slot;
+  const validSlots = new Set<EquipmentSlot>([
+    "amulet",
+    "back",
+    "bag",
+    "belt",
+    "boots",
+    "chest",
+    "gloves",
+    "head",
+    "mainHand",
+    "offHand",
+    "ring1",
+    "ring2",
+  ]);
+
+  return validSlots.has(normalizedSlot as EquipmentSlot) ? (normalizedSlot as EquipmentSlot) : null;
+}
+
+function normalizeInventoryCategory(
+  category: InventoryItem["category"] | string | undefined,
+  fallbackCategory: InventoryItem["category"],
+): InventoryItem["category"] {
+  const legacyCategories: Record<string, InventoryItem["category"]> = {
+    books: "quest",
+    consumables: "consumable",
+    keys: "misc",
+    materials: "material",
+    weapons: "weapon",
+  };
+  const normalizedCategory = category ? legacyCategories[category] ?? category : fallbackCategory;
+  const validCategories = new Set<InventoryItem["category"]>([
+    "armor",
+    "consumable",
+    "material",
+    "misc",
+    "quest",
+    "weapon",
+  ]);
+
+  return validCategories.has(normalizedCategory as InventoryItem["category"])
+    ? (normalizedCategory as InventoryItem["category"])
+    : fallbackCategory;
+}
+
+function normalizeInventoryItem(item: Partial<InventoryItem>, fallbackItem: InventoryItem): InventoryItem {
+  const slot = item.slot ? normalizeEquipmentSlot(item.slot) ?? undefined : undefined;
+  const isQuestItem = Boolean(item.isQuestItem ?? item.questItem);
+
+  return {
+    ...fallbackItem,
+    ...item,
+    category: normalizeInventoryCategory(item.category, fallbackItem.category),
+    createdAt: item.createdAt || fallbackItem.createdAt,
+    equippable: Boolean(item.equippable ?? fallbackItem.equippable),
+    icon: item.icon || fallbackItem.icon,
+    id: item.id || fallbackItem.id,
+    isQuestItem,
+    questItem: isQuestItem,
+    quantity: Number.isFinite(item.quantity) ? Math.max(0, Number(item.quantity)) : fallbackItem.quantity,
+    rarity: item.rarity ?? fallbackItem.rarity,
+    slot,
+    stats: item.stats ?? item.bonuses ?? fallbackItem.stats,
+    bonuses: item.bonuses ?? item.stats ?? fallbackItem.bonuses,
+    templateId: item.templateId || item.id || fallbackItem.templateId,
+    value: Number.isFinite(item.value) ? Number(item.value) : fallbackItem.value,
+    weight: Number.isFinite(item.weight) ? Math.max(0, Number(item.weight)) : fallbackItem.weight,
+  };
+}
+
+function normalizeInventory(data: Partial<GameSave>): InventoryState {
+  const fallbackInventory = createDefaultInventoryState();
+  const sourceInventory = data.inventory;
+  const sourceItems = Array.isArray(sourceInventory?.items) ? sourceInventory.items : fallbackInventory.items;
+  const normalizedItems = sourceItems
+    .map((item, index) => normalizeInventoryItem(item, fallbackInventory.items[index] ?? fallbackInventory.items[0]))
+    .filter((item) => item.quantity > 0);
+  const itemIds = new Set(normalizedItems.map((item) => item.id));
+  const sourceEquipment = sourceInventory?.equipment ?? fallbackInventory.equipment;
+  const normalizedEquipment: InventoryState["equipment"] = {};
+
+  for (const [slot, itemId] of Object.entries(sourceEquipment)) {
+    const normalizedSlot = normalizeEquipmentSlot(slot);
+
+    if (normalizedSlot && typeof itemId === "string" && itemIds.has(itemId)) {
+      normalizedEquipment[normalizedSlot] = itemId;
+    }
+  }
+
+  return {
+    equipment: normalizedEquipment,
+    gold: Number.isFinite(sourceInventory?.gold) ? Number(sourceInventory?.gold) : 0,
+    items: normalizedItems.length > 0 ? normalizedItems : fallbackInventory.items,
+    maxCarryWeight: Number.isFinite(sourceInventory?.maxCarryWeight)
+      ? Math.max(1, Number(sourceInventory?.maxCarryWeight))
+      : fallbackInventory.maxCarryWeight,
+  };
+}
+
 function normalizeSave(data: GameSave) {
   const normalizedSave: GameSave = {
     ...data,
     currentDay: Number.isFinite(data.currentDay) ? data.currentDay : DEFAULT_DAY,
     currentHour: Number.isFinite(data.currentHour) ? data.currentHour : DEFAULT_HOUR,
+    inventory: normalizeInventory(data),
     travelEnergy: normalizeTravelEnergy(data),
     player: {
       ...data.player,
@@ -78,6 +188,7 @@ function normalizeSave(data: GameSave) {
     normalizedSave.travelEnergy?.currentEnergy !== data.travelEnergy?.currentEnergy ||
     normalizedSave.travelEnergy?.maxEnergy !== data.travelEnergy?.maxEnergy ||
     normalizedSave.travelEnergy?.lastRestDay !== data.travelEnergy?.lastRestDay ||
+    JSON.stringify(normalizedSave.inventory) !== JSON.stringify(data.inventory) ||
     normalizedSave.player.portraitUrl !== data.player.portraitUrl;
 
   return { save: normalizedSave, changed };

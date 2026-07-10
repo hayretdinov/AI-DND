@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { initialEquipment, initialInventoryItems } from "../data/inventoryMockData";
+import { createDefaultInventoryState } from "../data/inventoryMockData";
 import { t, type TranslationKey } from "../i18n/i18n";
-import { loadGame } from "../systems/save/saveSystem";
-import type { EquipmentSlot, InventoryCategory, InventoryItem } from "../types/inventory";
+import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
+import type { EquipmentSlot, InventoryCategory, InventoryItem, InventoryState } from "../types/inventory";
 import type { PlayerCharacter } from "../types/player";
 
 type InventoryProps = {
   onBackToMenu: () => void;
+  onOpenMap: () => void;
 };
 
 type InventorySort = "recent" | "name" | "weight" | "value" | "quantity" | "rarity";
@@ -20,10 +21,10 @@ const categoryTabs: Array<{ id: InventoryCategory; labelKey: TranslationKey; ico
   { id: "all", labelKey: "inventoryCategoryAll", icon: "✦" },
   { id: "equipped", labelKey: "inventoryCategoryEquipped", icon: "◆" },
   { id: "backpack", labelKey: "inventoryCategoryBackpack", icon: "◇" },
-  { id: "weapons", labelKey: "inventoryCategoryWeapons", icon: "†" },
+  { id: "weapon", labelKey: "inventoryCategoryWeapons", icon: "†" },
   { id: "armor", labelKey: "inventoryCategoryArmor", icon: "▣" },
-  { id: "consumables", labelKey: "inventoryCategoryConsumables", icon: "◈" },
-  { id: "materials", labelKey: "inventoryCategoryMaterials", icon: "☘" },
+  { id: "consumable", labelKey: "inventoryCategoryConsumables", icon: "◈" },
+  { id: "material", labelKey: "inventoryCategoryMaterials", icon: "☘" },
   { id: "quest", labelKey: "inventoryCategoryQuest", icon: "⚿" },
   { id: "misc", labelKey: "inventoryCategoryMisc", icon: "◇" },
 ];
@@ -31,11 +32,11 @@ const categoryTabs: Array<{ id: InventoryCategory; labelKey: TranslationKey; ico
 const equipmentSlots: Array<{ id: EquipmentSlot; labelKey: TranslationKey; className: string }> = [
   { id: "head", labelKey: "inventorySlotHead", className: "inventory-equipment-slot--head" },
   { id: "chest", labelKey: "inventorySlotChest", className: "inventory-equipment-slot--chest" },
-  { id: "rightHand", labelKey: "inventorySlotRightHand", className: "inventory-equipment-slot--right-hand" },
-  { id: "leftHand", labelKey: "inventorySlotLeftHand", className: "inventory-equipment-slot--left-hand" },
+  { id: "mainHand", labelKey: "inventorySlotMainHand", className: "inventory-equipment-slot--right-hand" },
+  { id: "offHand", labelKey: "inventorySlotOffHand", className: "inventory-equipment-slot--left-hand" },
   { id: "back", labelKey: "inventorySlotBack", className: "inventory-equipment-slot--back" },
-  { id: "accessory1", labelKey: "inventorySlotAccessory1", className: "inventory-equipment-slot--accessory-1" },
-  { id: "accessory2", labelKey: "inventorySlotAccessory2", className: "inventory-equipment-slot--accessory-2" },
+  { id: "ring1", labelKey: "inventorySlotRing1", className: "inventory-equipment-slot--accessory-1" },
+  { id: "amulet", labelKey: "inventorySlotAmulet", className: "inventory-equipment-slot--accessory-2" },
   { id: "belt", labelKey: "inventorySlotBelt", className: "inventory-equipment-slot--belt" },
   { id: "bag", labelKey: "inventorySlotBag", className: "inventory-equipment-slot--bag" },
 ];
@@ -211,17 +212,20 @@ function getSortedItems(items: InventoryItem[], sortBy: InventorySort) {
   return sortedItems;
 }
 
-export function Inventory({ onBackToMenu }: InventoryProps) {
-  const save = loadGame();
-  const player = save?.player;
-  const [items, setItems] = useState(initialInventoryItems);
-  const [equipment, setEquipment] = useState(initialEquipment);
+export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
+  const loadedSave = loadGame();
+  const [currentSave, setCurrentSave] = useState<GameSave | null>(loadedSave);
+  const [inventory, setInventory] = useState<InventoryState>(() => loadedSave?.inventory ?? createDefaultInventoryState());
+  const player = currentSave?.player;
+  const items = inventory.items;
+  const equipment = inventory.equipment;
   const [selectedCategory, setSelectedCategory] = useState<InventoryCategory>("all");
-  const [selectedItemId, setSelectedItemId] = useState(initialInventoryItems[0]?.id ?? "");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(items[0]?.id ?? null);
   const [selectedSlotId, setSelectedSlotId] = useState<EquipmentSlot | null>(null);
   const [sortBy, setSortBy] = useState<InventorySort>("recent");
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
+  const [inventoryMessage, setInventoryMessage] = useState("");
 
   const equippedItemIds = useMemo(() => new Set(Object.values(equipment).filter(Boolean)), [equipment]);
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
@@ -240,14 +244,14 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
     }
 
     if (selectedCategory === "backpack") {
-      return !equippedItemIds.has(item.id) && !item.questItem;
+      return !equippedItemIds.has(item.id) && !item.isQuestItem;
     }
 
     return item.category === selectedCategory;
   });
   const sortedItems = getSortedItems(filteredItems, sortBy);
   const currentWeight = getInventoryWeight(items);
-  const maxWeight = 70;
+  const maxWeight = inventory.maxCarryWeight;
   const weightRatio = Math.min(100, (currentWeight / maxWeight) * 100);
   const isOverloaded = currentWeight >= maxWeight;
   const attributes = player?.attributes;
@@ -267,35 +271,47 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
   const evasion = Math.max(8, dexterity + 10);
   const blockChance = Math.max(5, Math.round((strength + constitution) / 2));
 
-  const updateItemQuantity = (itemId: string, nextQuantity: number) => {
-    setItems((currentItems) => currentItems.filter((item) => item.id !== itemId || nextQuantity > 0).map((item) =>
-      item.id === itemId ? { ...item, quantity: nextQuantity } : item,
-    ));
+  const persistInventory = (nextInventory: InventoryState, messageKey?: TranslationKey) => {
+    setInventory(nextInventory);
 
-    if (nextQuantity <= 0) {
-      setEquipment((currentEquipment) => {
-        const nextEquipment = { ...currentEquipment };
+    if (currentSave) {
+      const nextSave = { ...currentSave, inventory: nextInventory };
+      saveGame(nextSave);
+      setCurrentSave(nextSave);
+    }
 
-        for (const slotId of Object.keys(nextEquipment) as EquipmentSlot[]) {
-          if (nextEquipment[slotId] === itemId) {
-            delete nextEquipment[slotId];
-          }
-        }
-
-        return nextEquipment;
-      });
-      setSelectedItemId((currentSelectedItemId) =>
-        currentSelectedItemId === itemId ? items.find((item) => item.id !== itemId)?.id ?? "" : currentSelectedItemId,
-      );
+    if (messageKey) {
+      setInventoryMessage(t(messageKey));
     }
   };
 
+  const updateItemQuantity = (itemId: string, nextQuantity: number, messageKey: TranslationKey) => {
+    const nextItems = items
+      .filter((item) => item.id !== itemId || nextQuantity > 0)
+      .map((item) => (item.id === itemId ? { ...item, quantity: nextQuantity } : item));
+    const nextEquipment = { ...equipment };
+
+    if (nextQuantity <= 0) {
+      for (const slotId of Object.keys(nextEquipment) as EquipmentSlot[]) {
+        if (nextEquipment[slotId] === itemId) {
+          delete nextEquipment[slotId];
+        }
+      }
+
+      setSelectedItemId((currentSelectedItemId) =>
+        currentSelectedItemId === itemId ? nextItems[0]?.id ?? null : currentSelectedItemId,
+      );
+    }
+
+    persistInventory({ ...inventory, equipment: nextEquipment, items: nextItems }, messageKey);
+  };
+
   const handleUseItem = () => {
-    if (!selectedItem || selectedItem.category !== "consumables" || selectedItem.questItem) {
+    if (!selectedItem || selectedItem.category !== "consumable" || selectedItem.isQuestItem) {
       return;
     }
 
-    updateItemQuantity(selectedItem.id, selectedItem.quantity - 1);
+    updateItemQuantity(selectedItem.id, selectedItem.quantity - 1, "inventoryItemUsed");
   };
 
   const handleEquipItem = () => {
@@ -303,27 +319,42 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
       return;
     }
 
-    setEquipment((currentEquipment) => ({
-      ...currentEquipment,
-      [selectedItem.slot as EquipmentSlot]:
-        currentEquipment[selectedItem.slot as EquipmentSlot] === selectedItem.id ? undefined : selectedItem.id,
-    }));
+    const nextEquipment = { ...equipment };
+
+    if (nextEquipment[selectedItem.slot] === selectedItem.id) {
+      delete nextEquipment[selectedItem.slot];
+      persistInventory({ ...inventory, equipment: nextEquipment }, "inventoryItemUnequipped");
+      return;
+    }
+
+    nextEquipment[selectedItem.slot] = selectedItem.id;
+    persistInventory({ ...inventory, equipment: nextEquipment }, "inventoryItemEquipped");
   };
 
   const handleDropItem = () => {
-    if (!selectedItem || selectedItem.questItem) {
+    if (!selectedItem) {
       return;
     }
 
-    updateItemQuantity(selectedItem.id, selectedItem.quantity - 1);
+    if (selectedItem.isQuestItem) {
+      setInventoryMessage(t("inventoryCannotDropQuestItem"));
+      return;
+    }
+
+    updateItemQuantity(selectedItem.id, selectedItem.quantity - 1, "inventoryItemDropped");
   };
 
   const handleDropAll = () => {
-    if (!selectedItem || selectedItem.questItem) {
+    if (!selectedItem) {
       return;
     }
 
-    updateItemQuantity(selectedItem.id, 0);
+    if (selectedItem.isQuestItem) {
+      setInventoryMessage(t("inventoryCannotDropQuestItem"));
+      return;
+    }
+
+    updateItemQuantity(selectedItem.id, 0, "inventoryItemDropped");
   };
 
   return (
@@ -342,7 +373,7 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
           <button className="inventory-top-nav-item" type="button" disabled>
             {t("journalTitle")}
           </button>
-          <button className="inventory-top-nav-item" type="button" disabled>
+          <button className="inventory-top-nav-item" type="button" onClick={onOpenMap}>
             {t("inventoryMap")}
           </button>
           <button className="inventory-top-nav-item" type="button" disabled>
@@ -350,7 +381,7 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
           </button>
         </nav>
         <div className="inventory-top-nav__resources" aria-label={t("inventoryResources")}>
-          <span>{t("inventoryGold")}: 3,742</span>
+          <span>{t("inventoryGold")}: {inventory.gold.toLocaleString()}</span>
           <span>{t("inventorySilver")}: 1,250</span>
           <span>{t("inventoryBloodShard")}: 0</span>
           <button className="inventory-top-nav__icon-button" type="button" aria-label={t("inventoryBag")}>
@@ -417,7 +448,7 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
             </div>
             <div>
               <dt>{t("inventoryEnergy")}</dt>
-              <dd>{save?.travelEnergy?.currentEnergy ?? 100} / {save?.travelEnergy?.maxEnergy ?? 100}</dd>
+              <dd>{currentSave?.travelEnergy?.currentEnergy ?? 100} / {currentSave?.travelEnergy?.maxEnergy ?? 100}</dd>
             </div>
             <div>
               <dt>{t("inventoryAttack")}</dt>
@@ -641,14 +672,17 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
                   </div>
                 ) : null}
                 <p className="inventory-action-availability">
-                  {selectedItem.questItem
+                  {selectedItem.isQuestItem
                     ? t("inventoryQuestItemLocked")
-                    : selectedItem.category === "consumables"
+                    : selectedItem.category === "consumable"
                       ? t("inventoryActionUseAvailable")
                       : selectedItem.equippable
                         ? t("inventoryActionEquipAvailable")
                         : t("inventoryActionDropAvailable")}
                 </p>
+                {inventoryMessage ? (
+                  <p className="inventory-action-availability">{inventoryMessage}</p>
+                ) : null}
               </>
             ) : (
               <p>{t("inventorySelectItem")}</p>
@@ -672,16 +706,16 @@ export function Inventory({ onBackToMenu }: InventoryProps) {
                 <i style={{ width: `${weightRatio}%` }} />
               </div>
             </div>
-            <button className="inventory-action-button" type="button" onClick={handleUseItem} disabled={selectedItem?.category !== "consumables" || selectedItem?.questItem}>
+            <button className="inventory-action-button" type="button" onClick={handleUseItem} disabled={selectedItem?.category !== "consumable" || selectedItem?.isQuestItem}>
               {t("inventoryUse")}
             </button>
             <button className="inventory-action-button" type="button" onClick={handleEquipItem} disabled={!selectedItem?.equippable}>
               {selectedItem && equippedItemIds.has(selectedItem.id) ? t("inventoryUnequip") : t("inventoryEquip")}
             </button>
-            <button className="inventory-action-button" type="button" onClick={handleDropItem} disabled={!selectedItem || selectedItem.questItem}>
+            <button className="inventory-action-button" type="button" onClick={handleDropItem} disabled={!selectedItem || selectedItem.isQuestItem}>
               {t("inventoryDrop")}
             </button>
-            <button className="inventory-action-button inventory-action-button--danger" type="button" onClick={handleDropAll} disabled={!selectedItem || selectedItem.questItem}>
+            <button className="inventory-action-button inventory-action-button--danger" type="button" onClick={handleDropAll} disabled={!selectedItem || selectedItem.isQuestItem}>
               {t("inventoryDropAll")}
             </button>
           </div>

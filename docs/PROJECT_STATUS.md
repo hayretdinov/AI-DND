@@ -622,3 +622,14 @@ Update date: 2026-07-11
 - Added legendary rarity support and stronger rarity frame/glow styles.
 - Improved gothic panels, equipment slots, chest-like item cells, selected glow, and overloaded load warning.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Inventory save integration
+
+Update date: 2026-07-11
+
+- Inventory items, quantities, gold, max carry weight, and equipment slots are now stored in the game save.
+- Old saves safely migrate missing inventory data, legacy categories, and legacy equipment slot names without resetting player progress.
+- Use, Equip, Unequip, Drop, and Drop All actions persist through `saveGame`.
+- Carry weight is recalculated from saved item stacks.
+- The Inventory top Map button now returns the player to the WorldMap screen.
+- Build passes with `npm.cmd run build` from `client/`.

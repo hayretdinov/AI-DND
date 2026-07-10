@@ -57,7 +57,9 @@ export default function App() {
         ) : null}
 
         {screen === "eventScene" ? <EventScene onBackToMenu={backToMenu} /> : null}
-        {screen === "inventory" ? <Inventory onBackToMenu={backToMenu} /> : null}
+        {screen === "inventory" ? (
+          <Inventory onBackToMenu={backToMenu} onOpenMap={() => setScreen("worldMap")} />
+        ) : null}
         {screen === "journal" ? <Journal onBackToMenu={backToMenu} /> : null}
         {screen === "settings" ? (
           <Settings
