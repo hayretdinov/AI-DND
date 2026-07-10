@@ -3522,3 +3522,65 @@ button {
     height: 18px;
   }
 }
+
+.world-map-ui-top,
+.world-map-ui-left,
+.world-map-ui-right,
+.world-map-ui-bottom {
+  border: 0;
+  background-color: transparent;
+  box-shadow: none;
+  filter: none;
+  backdrop-filter: none;
+}
+
+.world-map-info,
+.world-map-info__current,
+.world-map-info__location {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.world-map-nav-button,
+.world-map-nav-button:hover:not(:disabled),
+.world-map-nav-button--active {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.world-map-nav-button img,
+.world-map-nav-button > .map-fallback-icon {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.world-map-nav-button:hover:not(:disabled) img,
+.world-map-nav-button:hover:not(:disabled) > .map-fallback-icon,
+.world-map-nav-button--active img,
+.world-map-nav-button--active > .map-fallback-icon {
+  filter: drop-shadow(0 0 9px rgba(255, 213, 136, 0.56));
+  transform: scale(1.04);
+}
+
+.world-map-zoom-controls {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.world-map-zoom-controls button {
+  border: 0;
+  color: #f8e2b4;
+  background: transparent;
+  box-shadow: none;
+}
+
+.world-map-zoom-controls button:hover {
+  filter: drop-shadow(0 0 8px rgba(255, 213, 136, 0.64));
+  transform: scale(1.08);
+}

@@ -6,6 +6,7 @@ import {
   getConnectedNodeIds,
   getTravelPathCost,
   getTravelPathDangerLevel,
+  getTravelPathTimeHours,
   getWorldMapNodeById,
   isWorldMapNodeId,
   findPathBetweenNodes,
@@ -28,12 +29,16 @@ type WorldMapProps = {
 
 type NodeStatus = "current" | "available" | "locked" | "distant";
 
-const MOVE_DURATION_MS = 900;
 const WORLD_MAP_ASSET_PATH = "/assets/world-map/world_map_main.png";
 const WORLD_MAP_UI_PATH = "/assets/world-map/ui/";
-const TRAVEL_ENERGY_MAX = 3;
-const CURRENT_DAY = 1;
-const CURRENT_HOUR = "06:00";
+const DEFAULT_TRAVEL_ENERGY_MAX = 100;
+const DEFAULT_DAY = 1;
+const DEFAULT_HOUR = 6;
+const MIN_TRAVEL_DELAY_MS = 800;
+const MAX_TRAVEL_DELAY_MS = 1500;
+const TRAVEL_DELAY_PER_HOUR_MS = 250;
+const BASE_TRAVEL_MODE = "walking";
+const WALKING_SPEED_MULTIPLIER = 1;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.15;
@@ -95,6 +100,32 @@ function getStatusLabel(status: NodeStatus) {
   return t("worldMapStatusDistant");
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatHour(hour: number) {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function advanceWorldTime(day: number, hour: number, addedHours: number) {
+  const totalHours = hour + addedHours;
+  return {
+    day: day + Math.floor(totalHours / 24),
+    hour: totalHours % 24,
+  };
+}
+
+function getTravelVisualDelayMs(travelTimeHours: number) {
+  // TODO: apply mounts, vehicles, ships, portals, and other travel speed modifiers here.
+  const travelModeMultiplier = BASE_TRAVEL_MODE === "walking" ? WALKING_SPEED_MULTIPLIER : WALKING_SPEED_MULTIPLIER;
+  return clamp(
+    travelTimeHours * TRAVEL_DELAY_PER_HOUR_MS * travelModeMultiplier,
+    MIN_TRAVEL_DELAY_MS,
+    MAX_TRAVEL_DELAY_MS,
+  );
+}
+
 export function WorldMap({
   saveVersion,
   onOpenEvent,
@@ -110,12 +141,17 @@ export function WorldMap({
     ? savedLocationId
     : WORLD_MAP_START_NODE_ID;
   const initialNode = getWorldMapNodeById(initialLocationId);
+  const initialMaxEnergy = save?.travelEnergy?.maxEnergy ?? DEFAULT_TRAVEL_ENERGY_MAX;
 
   const [currentLocationId, setCurrentLocationId] = useState<WorldMapNodeId>(initialLocationId);
   const [selectedNodeId, setSelectedNodeId] = useState<WorldMapNodeId>(initialLocationId);
   const [markerPosition, setMarkerPosition] = useState({ x: initialNode.x, y: initialNode.y });
   const [travelingTo, setTravelingTo] = useState<WorldMapNodeId | null>(null);
   const [arrivalMessage, setArrivalMessage] = useState("");
+  const [currentDay, setCurrentDay] = useState(save?.currentDay ?? DEFAULT_DAY);
+  const [currentHour, setCurrentHour] = useState(save?.currentHour ?? DEFAULT_HOUR);
+  const [travelEnergy, setTravelEnergy] = useState(save?.travelEnergy?.currentEnergy ?? initialMaxEnergy);
+  const [travelEnergyMax, setTravelEnergyMax] = useState(initialMaxEnergy);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -141,9 +177,9 @@ export function WorldMap({
     () => findPathBetweenNodes(currentLocationId, selectedNodeId),
     [currentLocationId, selectedNodeId],
   );
-  const travelEnergy = TRAVEL_ENERGY_MAX;
   const selectedTravelCost = selectedPath ? getTravelPathCost(selectedPath) : null;
   const selectedPathDangerLevel = selectedPath ? getTravelPathDangerLevel(selectedPath) : null;
+  const selectedTravelTimeHours = selectedPath ? getTravelPathTimeHours(selectedPath) : null;
   const hasPathToSelectedNode = Boolean(selectedPath);
   const hasEnoughTravelEnergy = selectedTravelCost === null || selectedTravelCost <= travelEnergy;
   const canTravel = Boolean(
@@ -266,6 +302,9 @@ export function WorldMap({
     }
 
     const destination = getWorldMapNodeById(selectedNodeId);
+    const travelCost = selectedTravelCost ?? getTravelPathCost(selectedPath);
+    const travelTimeHours = selectedTravelTimeHours ?? getTravelPathTimeHours(selectedPath);
+    const visualDelayMs = getTravelVisualDelayMs(travelTimeHours);
     setTravelingTo(selectedNodeId);
     setArrivalMessage(t("worldMapTraveling"));
 
@@ -275,11 +314,31 @@ export function WorldMap({
 
     window.setTimeout(() => {
       const latestSave = loadGame();
+      const latestDay = latestSave?.currentDay ?? currentDay;
+      const latestHour = latestSave?.currentHour ?? currentHour;
+      const latestMaxEnergy = latestSave?.travelEnergy?.maxEnergy ?? travelEnergyMax;
+      const latestEnergy = latestSave?.travelEnergy?.currentEnergy ?? travelEnergy;
+      const nextEnergy = Math.max(0, latestEnergy - travelCost);
+      const nextTime = advanceWorldTime(latestDay, latestHour, travelTimeHours);
 
       if (latestSave) {
-        saveGame({ ...latestSave, currentLocationId: destination.id });
+        saveGame({
+          ...latestSave,
+          currentLocationId: destination.id,
+          currentDay: nextTime.day,
+          currentHour: nextTime.hour,
+          travelEnergy: {
+            currentEnergy: nextEnergy,
+            maxEnergy: latestMaxEnergy,
+            lastRestDay: latestSave.travelEnergy?.lastRestDay ?? latestDay,
+          },
+        });
       }
 
+      setCurrentDay(nextTime.day);
+      setCurrentHour(nextTime.hour);
+      setTravelEnergy(nextEnergy);
+      setTravelEnergyMax(latestMaxEnergy);
       setCurrentLocationId(destination.id);
       setSelectedNodeId(destination.id);
       setTravelingTo(null);
@@ -288,7 +347,7 @@ export function WorldMap({
           ? `${t("worldMapArrived")} ${translateMapKey(destination.titleKey)}. ${t("worldMapDangerNote")}`
           : `${t("worldMapArrived")} ${translateMapKey(destination.titleKey)}.`,
       );
-    }, MOVE_DURATION_MS);
+    }, visualDelayMs);
   };
 
   return (
@@ -298,16 +357,16 @@ export function WorldMap({
           <div className="world-map-ui-top" aria-label={t("worldMapTopPanel")}>
             <div>
               <span>{t("worldMapDay")}</span>
-              <strong>{CURRENT_DAY}</strong>
+              <strong>{currentDay}</strong>
             </div>
             <div>
               <span>{t("worldMapHour")}</span>
-              <strong>{CURRENT_HOUR}</strong>
+              <strong>{formatHour(currentHour)}</strong>
             </div>
             <div>
               <span>{t("worldMapTravelEnergy")}</span>
               <strong>
-                {travelEnergy}/{TRAVEL_ENERGY_MAX}
+                {travelEnergy}/{travelEnergyMax}
               </strong>
             </div>
           </div>

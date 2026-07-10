@@ -520,3 +520,15 @@ Update date: 2026-07-10
 - The marker stays inside `world-map-canvas` and moves with the current location during Travel.
 - Old saves without `portraitUrl` are normalized with a safe fallback portrait path.
 - Missing or failed portrait images fall back to the character initial.
+
+## World Map portrait, clean UI panels, and slow travel fix
+
+Update date: 2026-07-10
+
+- Removed extra CSS backplates from WorldMap panels while keeping the decorative PNG panel assets.
+- Removed extra CSS backplates from WorldMap UI icon buttons and zoom controls.
+- Fixed the selected hero portrait in the top-left WorldMap frame and on the circular map marker.
+- Travel Energy is now stored in save data and spent on successful Travel using path `energyCost`.
+- Travel now uses a walking delay based on path `travelTimeHours`, clamped between 800ms and 1500ms.
+- Added a TODO hook for future mounts, vehicles, ships, portals, and other travel speed modifiers.
+- Fullscreen map, pan, zoom, point selection, and route pathfinding remain in place.

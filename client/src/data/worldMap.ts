@@ -465,6 +465,14 @@ export function getTravelPathDangerLevel(path: WorldMapNodeId[]) {
   }, 0);
 }
 
+export function getTravelPathTimeHours(path: WorldMapNodeId[]) {
+  return path.slice(0, -1).reduce((totalHours, nodeId, index) => {
+    const nextNodeId = path[index + 1];
+    const route = getRouteBetween(nodeId, nextNodeId);
+    return totalHours + (route?.travelTimeHours ?? 1);
+  }, 0);
+}
+
 export function validateWorldMapData() {
   const warnings: string[] = [];
   const seenNodeIds = new Set<WorldMapNodeId>();
