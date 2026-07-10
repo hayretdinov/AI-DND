@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FantasyButton } from "../components/FantasyButton";
 import { t } from "../i18n/i18n";
 
-const MAIN_MENU_LOGO_SRC = "/assets/ui/logo-ai-dnd-banner.png";
+const MAIN_MENU_LOGO_SRC = "/assets/branding/game_logo.png";
 
 const renderButtonLabel = (label: string) => (
   <span className="main-menu__button-label">
@@ -48,7 +48,7 @@ export function MainMenu({
           <span className="main-menu__logo-fallback">AI-DND</span>
         ) : (
           <img
-            className="main-menu__logo-image"
+            className="main-menu__logo-image main-menu-logo-image"
             src={MAIN_MENU_LOGO_SRC}
             alt=""
             aria-hidden="true"

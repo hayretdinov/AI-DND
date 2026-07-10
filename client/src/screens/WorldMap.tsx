@@ -24,6 +24,7 @@ import {
   validateWorldMapData,
   WORLD_MAP_START_NODE_ID,
   worldMapNodes,
+  worldMapRoutes,
   type MapNode,
   type WorldMapIconType,
   type WorldMapNodeId,
@@ -42,6 +43,10 @@ type NodeStatus = "current" | "available" | "locked" | "distant";
 type ActiveTravelSegment = {
   fromId: WorldMapNodeId;
   toId: WorldMapNodeId;
+};
+type MapEditorPosition = {
+  x: number;
+  y: number;
 };
 
 const WORLD_MAP_ASSET_PATH = "/assets/world-map/world_map_main.png";
@@ -176,6 +181,54 @@ function getTravelSegmentPoints(segment: ActiveTravelSegment | null) {
   ];
 }
 
+function formatMapCoordinate(value: number) {
+  return value.toFixed(1);
+}
+
+function getMapEditorPatch(nodeId: WorldMapNodeId, position: MapEditorPosition) {
+  return `{\n  id: "${nodeId}",\n  x: ${formatMapCoordinate(position.x)},\n  y: ${formatMapCoordinate(position.y)}\n}`;
+}
+
+function getMapEditorCoordinateText(position: MapEditorPosition) {
+  return `x: ${formatMapCoordinate(position.x)},\ny: ${formatMapCoordinate(position.y)},`;
+}
+
+function validateMapEditorData() {
+  const warnings: string[] = [];
+  const nodeIds = new Set<string>();
+  const duplicateNodeIds = new Set<string>();
+
+  for (const node of worldMapNodes) {
+    if (nodeIds.has(node.id)) {
+      duplicateNodeIds.add(node.id);
+    }
+
+    nodeIds.add(node.id);
+
+    if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) {
+      warnings.push(`${t("worldMapEditorNodeMissingCoordinates")} ${node.id}`);
+    } else if (node.x < 0 || node.x > 100 || node.y < 0 || node.y > 100) {
+      warnings.push(`${t("worldMapEditorNodeCoordinatesOutOfRange")} ${node.id}`);
+    }
+  }
+
+  for (const duplicateId of duplicateNodeIds) {
+    warnings.push(`${t("worldMapEditorDuplicateNode")} ${duplicateId}`);
+  }
+
+  for (const route of worldMapRoutes) {
+    if (!nodeIds.has(route.from)) {
+      warnings.push(`${t("worldMapEditorRouteError")} ${route.from}`);
+    }
+
+    if (!nodeIds.has(route.to)) {
+      warnings.push(`${t("worldMapEditorRouteError")} ${route.to}`);
+    }
+  }
+
+  return warnings;
+}
+
 export function WorldMap({
   saveVersion,
   onOpenEvent,
@@ -210,6 +263,15 @@ export function WorldMap({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [isPlayerPortraitFailed, setIsPlayerPortraitFailed] = useState(false);
+  const [isNodeEditorOpen, setIsNodeEditorOpen] = useState(false);
+  const [lastEditorClick, setLastEditorClick] = useState<MapEditorPosition | null>(null);
+  const [editorSelectedNodeId, setEditorSelectedNodeId] = useState<WorldMapNodeId>(initialLocationId);
+  const [previewNodePositions, setPreviewNodePositions] = useState<Partial<Record<WorldMapNodeId, MapEditorPosition>>>(
+    {},
+  );
+  const [editorClipboardText, setEditorClipboardText] = useState("");
+  const [editorCopyStatus, setEditorCopyStatus] = useState("");
+  const mapCanvasRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({
     pointerId: -1,
     startX: 0,
@@ -221,8 +283,21 @@ export function WorldMap({
 
   const connectedNodeIds = useMemo(() => getConnectedNodeIds(currentLocationId), [currentLocationId]);
   const worldMapDataWarnings = useMemo(() => validateWorldMapData(), []);
+  const mapEditorWarnings = validateMapEditorData();
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
+  const editorSelectedNode = getWorldMapNodeById(editorSelectedNodeId);
+  const editorSelectedRoutes = useMemo(
+    () => worldMapRoutes.filter((route) => route.from === editorSelectedNodeId || route.to === editorSelectedNodeId),
+    [editorSelectedNodeId],
+  );
+  const editorConnectedNodeIds = Array.from(
+    new Set(editorSelectedRoutes.map((route) => (route.from === editorSelectedNodeId ? route.to : route.from))),
+  );
+  const editorRouteWarnings = editorSelectedRoutes
+    .flatMap((route) => [route.from, route.to])
+    .filter((nodeId) => !worldMapNodes.some((node) => node.id === nodeId))
+    .map((nodeId) => `${t("worldMapEditorRouteError")} ${nodeId}`);
   const playerPortraitUrl = save?.player.portraitUrl ?? "";
   const playerInitial = save?.player.name.slice(0, 1).toUpperCase() || "?";
   const shouldShowPlayerPortrait = Boolean(playerPortraitUrl) && !isPlayerPortraitFailed;
@@ -257,6 +332,7 @@ export function WorldMap({
     hasPathToSelectedNode && !hasEnoughTravelEnergy && hasEnoughEnergyForFirstSegment;
   const canTravel = Boolean(
     save &&
+      !isNodeEditorOpen &&
       !travelingTo &&
       selectedNodeId !== currentLocationId &&
       selectedNode.unlocked &&
@@ -339,9 +415,23 @@ export function WorldMap({
 
   const handleMapPointerEnd = (event: PointerEvent<HTMLElement>) => {
     const dragState = dragStateRef.current;
+    const shouldCaptureEditorClick =
+      event.type === "pointerup" && isNodeEditorOpen && dragState.pointerId === event.pointerId && !dragState.hasDragged;
 
     if (dragState.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (shouldCaptureEditorClick) {
+      const canvasRect = mapCanvasRef.current?.getBoundingClientRect();
+
+      if (canvasRect && canvasRect.width > 0 && canvasRect.height > 0) {
+        setLastEditorClick({
+          x: clamp(((event.clientX - canvasRect.left) / canvasRect.width) * 100, 0, 100),
+          y: clamp(((event.clientY - canvasRect.top) / canvasRect.height) * 100, 0, 100),
+        });
+        setEditorCopyStatus("");
+      }
     }
 
     setIsDragging(false);
@@ -356,7 +446,7 @@ export function WorldMap({
   };
 
   const handleNodeSelect = (nodeId: WorldMapNodeId) => {
-    if (travelingTo || dragStateRef.current.hasDragged) {
+    if (travelingTo || isNodeEditorOpen || dragStateRef.current.hasDragged) {
       return;
     }
 
@@ -371,6 +461,13 @@ export function WorldMap({
 
   const handleNodeClick = (event: MouseEvent<HTMLButtonElement>, nodeId: WorldMapNodeId) => {
     event.stopPropagation();
+
+    if (isNodeEditorOpen) {
+      setEditorSelectedNodeId(nodeId);
+      setEditorCopyStatus("");
+      return;
+    }
+
     handleNodeSelect(nodeId);
   };
 
@@ -381,11 +478,60 @@ export function WorldMap({
 
     event.preventDefault();
     event.stopPropagation();
+
+    if (isNodeEditorOpen) {
+      setEditorSelectedNodeId(nodeId);
+      setEditorCopyStatus("");
+      return;
+    }
+
     handleNodeSelect(nodeId);
   };
 
+  const copyEditorText = async (text: string) => {
+    setEditorClipboardText(text);
+
+    try {
+      await navigator.clipboard?.writeText(text);
+      setEditorCopyStatus(t("worldMapEditorCopied"));
+    } catch {
+      setEditorCopyStatus("");
+    }
+  };
+
+  const handleCopyCoordinates = () => {
+    if (!lastEditorClick) {
+      return;
+    }
+
+    void copyEditorText(getMapEditorCoordinateText(lastEditorClick));
+  };
+
+  const handlePreviewPosition = () => {
+    if (!lastEditorClick) {
+      return;
+    }
+
+    setPreviewNodePositions((currentPreviewPositions) => ({
+      ...currentPreviewPositions,
+      [editorSelectedNodeId]: lastEditorClick,
+    }));
+  };
+
+  const handleCopyPatch = () => {
+    if (!lastEditorClick) {
+      return;
+    }
+
+    void copyEditorText(getMapEditorPatch(editorSelectedNodeId, lastEditorClick));
+  };
+
+  const handleResetPreview = () => {
+    setPreviewNodePositions({});
+  };
+
   const handleTravel = async () => {
-    if (!save || travelingTo || !selectedPath || selectedPath.length <= 1) {
+    if (!save || isNodeEditorOpen || travelingTo || !selectedPath || selectedPath.length <= 1) {
       return;
     }
 
@@ -576,6 +722,7 @@ export function WorldMap({
             onWheel={handleMapWheel}
           >
             <div
+              ref={mapCanvasRef}
               className="world-map-canvas"
               style={{
                 transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
@@ -633,6 +780,8 @@ export function WorldMap({
                   : hasMapIcon
                     ? "world-map-icon"
                     : "world-map-road-marker";
+                const previewPosition = previewNodePositions[node.id];
+                const nodePosition = previewPosition ?? { x: node.x, y: node.y };
 
                 return (
                   <button
@@ -645,10 +794,11 @@ export function WorldMap({
                       node.type === "road_point" ? "world-map-node--road-point" : "",
                       !hasMapIcon || isRoadPointIcon ? "world-map-node--minor" : "",
                       isSelected ? "world-map-node--selected" : "",
+                      previewPosition ? "world-map-node--preview" : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
-                    style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                    style={{ left: `${nodePosition.x}%`, top: `${nodePosition.y}%` }}
                     role="button"
                     tabIndex={0}
                     onPointerDown={handleNodePointerDown}
@@ -707,6 +857,129 @@ export function WorldMap({
             <button type="button" onClick={handleResetView} aria-label={t("worldMapZoomReset")}>
               {t("worldMapZoomReset")}
             </button>
+          </div>
+
+          <div className="world-map-node-editor">
+            <button
+              type="button"
+              className={["world-map-node-editor-toggle", isNodeEditorOpen ? "world-map-node-editor-toggle--active" : ""]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => {
+                setIsNodeEditorOpen((isOpen) => !isOpen);
+                setEditorCopyStatus("");
+              }}
+            >
+              {t("worldMapNodeEditor")}
+            </button>
+
+            {isNodeEditorOpen ? (
+              <div className="world-map-node-editor-panel" aria-label={t("worldMapNodeEditor")}>
+                <div className="world-map-node-editor-row">
+                  <span>{t("worldMapEditorLastClick")}</span>
+                  <strong>
+                    {lastEditorClick
+                      ? `x: ${formatMapCoordinate(lastEditorClick.x)}, y: ${formatMapCoordinate(lastEditorClick.y)}`
+                      : t("worldMapEditorNoClick")}
+                  </strong>
+                </div>
+
+                <div className="world-map-node-editor-actions">
+                  <button type="button" onClick={handleCopyCoordinates} disabled={!lastEditorClick}>
+                    {t("worldMapEditorCopyCoordinates")}
+                  </button>
+                  <button type="button" onClick={handlePreviewPosition} disabled={!lastEditorClick}>
+                    {t("worldMapEditorPreviewPosition")}
+                  </button>
+                  <button type="button" onClick={handleCopyPatch} disabled={!lastEditorClick}>
+                    {t("worldMapEditorCopyPatch")}
+                  </button>
+                  <button type="button" onClick={handleResetPreview}>
+                    {t("worldMapEditorResetPreview")}
+                  </button>
+                </div>
+
+                {editorCopyStatus ? <p className="world-map-node-editor-status">{editorCopyStatus}</p> : null}
+                {editorClipboardText ? (
+                  <textarea
+                    className="world-map-node-editor-copy"
+                    readOnly
+                    value={editorClipboardText}
+                    aria-label={t("worldMapEditorClipboardText")}
+                  />
+                ) : null}
+
+                <label className="world-map-node-editor-row">
+                  <span>{t("worldMapEditorSelectNode")}</span>
+                  <select
+                    value={editorSelectedNodeId}
+                    onChange={(event) => {
+                      if (isWorldMapNodeId(event.target.value)) {
+                        setEditorSelectedNodeId(event.target.value);
+                        setEditorCopyStatus("");
+                      }
+                    }}
+                  >
+                    {worldMapNodes.map((node) => (
+                      <option key={node.id} value={node.id}>
+                        {node.id} | {node.type}
+                        {node.iconType ? ` | ${node.iconType}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="world-map-node-editor-row">
+                  <span>{t("worldMapEditorCurrentNode")}</span>
+                  <strong>{editorSelectedNode.id}</strong>
+                </div>
+                <div className="world-map-node-editor-grid">
+                  <span>{t("worldMapEditorX")}</span>
+                  <strong>{formatMapCoordinate(previewNodePositions[editorSelectedNodeId]?.x ?? editorSelectedNode.x)}</strong>
+                  <span>{t("worldMapEditorY")}</span>
+                  <strong>{formatMapCoordinate(previewNodePositions[editorSelectedNodeId]?.y ?? editorSelectedNode.y)}</strong>
+                  <span>{t("worldMapEditorType")}</span>
+                  <strong>{editorSelectedNode.type}</strong>
+                  <span>{t("worldMapEditorIconType")}</span>
+                  <strong>{editorSelectedNode.iconType ?? "-"}</strong>
+                </div>
+
+                <div className="world-map-node-editor-row">
+                  <span>{t("worldMapEditorConnectedNodes")}</span>
+                  <strong>
+                    {t("worldMapEditorRouteCount")}: {editorSelectedRoutes.length}
+                  </strong>
+                </div>
+                <ul className="world-map-node-editor-list">
+                  {editorConnectedNodeIds.length > 0 ? (
+                    editorConnectedNodeIds.map((nodeId) => <li key={nodeId}>{nodeId}</li>)
+                  ) : (
+                    <li>{t("worldMapEditorNoConnectedNodes")}</li>
+                  )}
+                </ul>
+                {editorRouteWarnings.map((warning) => (
+                  <p key={warning} className="world-map-node-editor-warning">
+                    {warning}
+                  </p>
+                ))}
+
+                <div className="world-map-node-editor-row">
+                  <span>{t("worldMapEditorValidation")}</span>
+                  <strong>
+                    {mapEditorWarnings.length === 0 ? t("worldMapEditorNoWarnings") : mapEditorWarnings.length}
+                  </strong>
+                </div>
+                {mapEditorWarnings.length > 0 ? (
+                  <ul className="world-map-node-editor-list world-map-node-editor-list--warnings">
+                    {mapEditorWarnings.map((warning) => (
+                      <li key={warning} className="world-map-node-editor-warning">
+                        {warning}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <aside className="world-map-ui-right" aria-live="polite">

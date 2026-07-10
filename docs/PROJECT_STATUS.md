@@ -575,3 +575,50 @@ Update date: 2026-07-11
 - The dashed travel arrow remains active on the current segment while the delay runs.
 - Added explicit walking delay constants for future mounts, vehicles, ships, and portals.
 - Fullscreen map, pan, zoom, point selection, routes, activeTravelSegment, and per-segment energy spending remain in place.
+
+## World Map node editor
+
+Update date: 2026-07-11
+
+- Added a manual WorldMap node coordinate editor overlay for development.
+- Clicking the map in editor mode captures x/y as percentages of the transformed map canvas.
+- Developers can select a node and preview its position without changing `worldMap.ts` or save data.
+- Coordinates and node patch snippets can be copied through the clipboard, with a textarea fallback.
+- The editor shows connected nodes and route count for the selected node.
+- Lightweight validation reports duplicate node ids, missing route endpoints, missing coordinates, and coordinates outside 0-100.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Branding assets added
+
+Update date: 2026-07-11
+
+- Added the game logo asset to `client/public/assets/branding/game_logo.png`.
+- Added `client/public/favicon.png` and connected it from `client/index.html`.
+- MainMenu now uses the branding logo while keeping the text fallback.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Inventory screen redesigned from reference
+
+Update date: 2026-07-11
+
+- Inventory screen was redesigned from the new dark fantasy reference.
+- Added a top inventory navigation bar with resources and utility buttons.
+- Added a left character stats panel with attributes, secondary stats, and carry weight.
+- Added a central character equipment layout with a paper-doll figure and surrounding equipment slots.
+- Added a right inventory grid panel with category tabs, selected item details, sorting, and action buttons.
+- Added local mock inventory data and local state for select, use, equip/unequip, drop, and drop all actions.
+- Dark gothic styling, bronze accents, rarity frames, and responsive layout are in place.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Inventory polish
+
+Update date: 2026-07-11
+
+- Added dark fantasy item tooltips with category, rarity, description, weight, value, quantity, slot, bonuses, and comparison.
+- Added comparison for equippable items against the currently equipped item in the same slot.
+- Improved action buttons: quest items block use/drop, consumables decrement, equip toggles, and drop/drop all update stacks.
+- Categories now support all, equipped, backpack, weapons, armor, consumables, materials, quest, and misc filters.
+- Sorting now supports recent, name, weight, value, quantity, and rarity.
+- Added legendary rarity support and stronger rarity frame/glow styles.
+- Improved gothic panels, equipment slots, chest-like item cells, selected glow, and overloaded load warning.
+- Build passes with `npm.cmd run build` from `client/`.

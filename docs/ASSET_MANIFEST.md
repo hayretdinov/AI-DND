@@ -1,5 +1,12 @@
 # AI-DND Asset Manifest
 
+## Branding Assets
+
+| Asset | File Path | Use | Status |
+| --- | --- | --- | --- |
+| Game logo | `client/public/assets/branding/game_logo.png` | Main menu logo | added |
+| Browser favicon | `client/public/favicon.png` | Browser tab icon | added |
+
 ## Anariel Companion Assets
 
 | Visual State | File Path | Narrative Use | Required for MVP | Notes |
