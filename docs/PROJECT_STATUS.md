@@ -570,6 +570,7 @@ Update date: 2026-07-10
 Update date: 2026-07-11
 
 - Minimum visual delay for each walking segment is now 15 seconds.
+- The player marker animation now uses the same segment duration, so the hero visibly moves along the current arrow instead of jumping early.
 - Every intermediate point still requires its own segment delay before the hero advances.
 - The dashed travel arrow remains active on the current segment while the delay runs.
 - Added explicit walking delay constants for future mounts, vehicles, ships, and portals.

@@ -2383,8 +2383,8 @@ button {
   place-items: center;
   transform: translate(-50%, -50%);
   transition:
-    left 900ms cubic-bezier(0.2, 0.82, 0.24, 1),
-    top 900ms cubic-bezier(0.2, 0.82, 0.24, 1);
+    left var(--world-map-player-marker-travel-ms, 900ms) linear,
+    top var(--world-map-player-marker-travel-ms, 900ms) linear;
   box-shadow:
     0 0 18px rgba(89, 190, 255, 0.9),
     inset 0 0 12px rgba(166, 235, 255, 0.4);

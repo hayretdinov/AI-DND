@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
 import { ScreenPanel } from "../components/ScreenPanel";
 import { FantasyButton } from "../components/FantasyButton";
 import { t, type TranslationKey } from "../i18n/i18n";
@@ -195,6 +205,7 @@ export function WorldMap({
   const [travelPath, setTravelPath] = useState<WorldMapNodeId[]>([]);
   const [currentTravelStepIndex, setCurrentTravelStepIndex] = useState(0);
   const [activeTravelSegment, setActiveTravelSegment] = useState<ActiveTravelSegment | null>(null);
+  const [activeTravelSegmentDelayMs, setActiveTravelSegmentDelayMs] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -223,6 +234,11 @@ export function WorldMap({
       : `${translateMapKey(getWorldMapNodeById(activeTravelSegment.fromId).titleKey)} -> ${translateMapKey(
           getWorldMapNodeById(activeTravelSegment.toId).titleKey,
         )}`;
+  const playerMarkerStyle = {
+    left: `${markerPosition.x}%`,
+    top: `${markerPosition.y}%`,
+    "--world-map-player-marker-travel-ms": `${activeTravelSegmentDelayMs}ms`,
+  } as CSSProperties;
   const selectedPath = useMemo(
     () => findPathBetweenNodes(currentLocationId, selectedNodeId),
     [currentLocationId, selectedNodeId],
@@ -400,6 +416,7 @@ export function WorldMap({
       const destination = getWorldMapNodeById(toId);
       const visualDelayMs = getTravelVisualDelayMs(segmentVisualTimeHours);
       setActiveTravelSegment({ fromId, toId });
+      setActiveTravelSegmentDelayMs(visualDelayMs);
       setCurrentTravelStepIndex(index + 1);
 
       window.requestAnimationFrame(() => {
@@ -450,6 +467,7 @@ export function WorldMap({
     setTravelPath([]);
     setCurrentTravelStepIndex(0);
     setActiveTravelSegment(null);
+    setActiveTravelSegmentDelayMs(0);
 
     if (didReachTarget) {
       setArrivalMessage(
@@ -661,7 +679,7 @@ export function WorldMap({
                 className={["world-map-player-marker", travelingTo ? "world-map-player-marker--traveling" : ""]
                   .filter(Boolean)
                   .join(" ")}
-                style={{ left: `${markerPosition.x}%`, top: `${markerPosition.y}%` }}
+                style={playerMarkerStyle}
                 aria-label={t("worldMapPlayerMarker")}
               >
                 <span className="world-map-player-marker-ring" aria-hidden="true" />
