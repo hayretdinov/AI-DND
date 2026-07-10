@@ -1,9 +1,11 @@
 import type { PlayerCharacter } from "../../types/player";
+import type { WorldMapNodeId } from "../../data/worldMap";
 
 const SAVE_KEY = "ai-dnd-save";
 
 export type GameSave = {
   player: PlayerCharacter;
+  currentLocationId?: WorldMapNodeId;
 };
 
 function getStorage() {

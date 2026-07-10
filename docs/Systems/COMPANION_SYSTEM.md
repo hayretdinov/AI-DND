@@ -38,3 +38,46 @@ race: "elf"
 gender: "female"
 role: "companion"
 status: "optional companion"
+```
+
+## Visual System of Anariel
+
+Anariel uses a planned visual progression that follows her narrative state. The current dedicated files are stored in `assets/companions/anariel/`:
+
+- `assets/companions/anariel/anariel_prisoner_floor_fear.png`
+- `assets/companions/anariel/anariel_chained_standing_fear.png`
+- `assets/companions/anariel/anariel_chained_standing_relief.png`
+- `assets/companions/anariel/anariel_travel_rags.png`
+- `assets/companions/anariel/anariel_travel_clothes.png`
+- `assets/companions/anariel/anariel_travel_armor.png`
+
+These images are asset-ready only. No frontend, backend, save, combat, AI, or event integration has been implemented as part of this asset intake.
+
+## Anariel Asset Files
+
+### Added Files
+
+| File | State | MVP |
+| --- | --- | --- |
+| `assets/companions/anariel/anariel_prisoner_floor_fear.png` | First encounter - prisoner on the floor | yes |
+| `assets/companions/anariel/anariel_chained_standing_fear.png` | After dialogue - standing in chains, afraid | yes |
+| `assets/companions/anariel/anariel_chained_standing_relief.png` | Standing in chains, relieved / happy | yes |
+| `assets/companions/anariel/anariel_travel_rags.png` | Traveling with the player in rags | yes |
+| `assets/companions/anariel/anariel_travel_clothes.png` | Traveling with the player in normal clothes | later |
+| `assets/companions/anariel/anariel_travel_armor.png` | Traveling with the player in armor | later |
+
+### MVP-Ready States
+
+- First encounter prisoner state.
+- Afraid chained dialogue state.
+- Relieved chained transition state.
+- Early travel in rags state.
+
+### Later States
+
+- Normal clothes progression.
+- Armor progression.
+
+### Missing Files
+
+- No additional Anariel companion visual files are required for the currently documented MVP states.

@@ -440,3 +440,23 @@ A new Companion System has been planned and documented in `docs/Systems/COMPANIO
 The first major companion is Anariel, an elf woman who may join the player early in the game. The system includes companion guidance, camp conversations, travel energy, relationship values, optional romance, companion agency, and a future tragic story arc.
 
 This system is documentation-only for now. No frontend, backend, AI integration, combat logic, or save changes have been implemented yet.
+
+## Anariel assets added
+
+Update date: 2026-07-09
+
+- Anariel companion images added to `assets/companions/anariel/` and renamed according to the companion asset schema.
+- `docs/ASSET_MANIFEST.md` created/updated with the Anariel companion asset table.
+- `docs/Systems/COMPANION_SYSTEM.md` updated with real Anariel visual asset paths.
+- Game code unchanged: no frontend, backend, AI, save, combat, or event logic was modified.
+
+## World Map visual interface connected
+
+Update date: 2026-07-10
+
+- The main world map image is connected as the `WorldMap` background.
+- Location icons render above the map by each node `iconType`.
+- World map UI panels are connected where assets exist and keep CSS fallback styling.
+- Existing route selection, Travel, Camp / Rest entry, save/load, and RU/EN localization logic are preserved.
+- Production build passes with `npm.cmd run build` from `client/`.
+- Next step: polish routes and EventScene arrival.

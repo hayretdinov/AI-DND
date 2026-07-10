@@ -316,3 +316,7 @@ Codex не должен:
 - пользователь утверждает изменения дизайна.
 
 Финальное правило: Codex implements. Documentation defines. The user approves.
+
+## Companion System
+
+Anariel has a planned visual progression with dedicated assets stored in `assets/companions/anariel/`: prisoner in chains, standing in chains, relieved in chains, traveling in rags, traveling in normal clothes, and traveling in armor.
