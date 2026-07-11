@@ -11,6 +11,11 @@ import {
 } from "react";
 import { ScreenPanel } from "../components/ScreenPanel";
 import { FantasyButton } from "../components/FantasyButton";
+import {
+  ANARIEL_ADVICE_PORTRAIT,
+  getAnarielWorldAdviceKey,
+  isAnarielActiveCompanion,
+} from "../data/companions/anarielAdvice";
 import { t, type TranslationKey } from "../i18n/i18n";
 import {
   getConnectedNodeIds,
@@ -250,6 +255,8 @@ export function WorldMap({
   const [markerPosition, setMarkerPosition] = useState({ x: initialNode.x, y: initialNode.y });
   const [travelingTo, setTravelingTo] = useState<WorldMapNodeId | null>(null);
   const [arrivalMessage, setArrivalMessage] = useState("");
+  const [anarielAdviceIndex, setAnarielAdviceIndex] = useState(0);
+  const [isAnarielPortraitMissing, setIsAnarielPortraitMissing] = useState(false);
   const [currentDay, setCurrentDay] = useState(save?.currentDay ?? DEFAULT_DAY);
   const [currentHour, setCurrentHour] = useState(save?.currentHour ?? DEFAULT_HOUR);
   const [travelEnergy, setTravelEnergy] = useState(save?.travelEnergy?.currentEnergy ?? initialMaxEnergy);
@@ -283,6 +290,8 @@ export function WorldMap({
   const connectedNodeIds = useMemo(() => getConnectedNodeIds(currentLocationId), [currentLocationId]);
   const worldMapDataWarnings = useMemo(() => validateWorldMapData(), []);
   const mapEditorWarnings = validateMapEditorData();
+  const showAnarielCompanionPanel = isAnarielActiveCompanion(save);
+  const anarielAdviceKey = getAnarielWorldAdviceKey(anarielAdviceIndex);
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
   const editorSelectedNode = getWorldMapNodeById(editorSelectedNodeId);
@@ -373,6 +382,9 @@ export function WorldMap({
   const handleResetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  };
+  const handleAskAnarielAdvice = () => {
+    setAnarielAdviceIndex((currentIndex) => currentIndex + 1);
   };
 
   const handleMapPointerDown = (event: PointerEvent<HTMLElement>) => {
@@ -853,6 +865,34 @@ export function WorldMap({
               {t("worldMapZoomReset")}
             </button>
           </div>
+
+          {showAnarielCompanionPanel ? (
+            <aside className="world-map-companion-panel" aria-label={t("companion.advice.title")}>
+              <div className="world-map-companion-portrait" aria-hidden="true">
+                {!isAnarielPortraitMissing ? (
+                  <img
+                    src={ANARIEL_ADVICE_PORTRAIT}
+                    alt=""
+                    draggable={false}
+                    onError={() => setIsAnarielPortraitMissing(true)}
+                  />
+                ) : null}
+                <span>A</span>
+              </div>
+              <div className="world-map-companion-info">
+                <strong className="world-map-companion-name">{t("companion.anariel.name")}</strong>
+                <span className="world-map-companion-status">{t("companion.anariel.status")}</span>
+              </div>
+              <p className="world-map-companion-text">{t(anarielAdviceKey)}</p>
+              <button
+                className="world-map-companion-button"
+                type="button"
+                onClick={handleAskAnarielAdvice}
+              >
+                {t("companion.advice.ask")}
+              </button>
+            </aside>
+          ) : null}
 
           <div className="world-map-node-editor">
             <button

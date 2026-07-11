@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  ANARIEL_ADVICE_PORTRAIT,
+  getAnarielGateAdviceKey,
+  getAnarielWorldAdviceKey,
+  isAnarielActiveCompanion,
+} from "../data/companions/anarielAdvice";
 import { ANARIEL_INTRO_EVENT } from "../data/events";
 import { t, type TranslationKey } from "../i18n/i18n";
 import { loadGame, saveGame, type AnarielCompanionState } from "../systems/save/saveSystem";
@@ -45,9 +51,15 @@ export function EventScene({ onBackToMenu, onOpenWorldMap }: EventSceneProps) {
   const [dialogueKey, setDialogueKey] = useState<TranslationKey>(event.dialogueInitialKey);
   const [interactionMode] = useState<EventInteractionMode>(event.interactionMode);
   const [introStep, setIntroStep] = useState<EventIntroStep>("initial");
+  const [companionAdviceIndex, setCompanionAdviceIndex] = useState(0);
+  const [isCompanionPortraitMissing, setIsCompanionPortraitMissing] = useState(false);
+  const loadedSave = loadGame();
+  const showAnarielCompanionPanel = isAnarielActiveCompanion(loadedSave);
   const isStandingStep = introStep === "standing";
   const speakerImage = isStandingStep ? event.standingImage : event.speakerImage;
   const choices = isStandingStep ? event.standingChoices : event.choices;
+  const companionAdviceKey =
+    companionAdviceIndex === 0 ? getAnarielGateAdviceKey() : getAnarielWorldAdviceKey(companionAdviceIndex - 1);
 
   const finishIntro = (status: AnarielCompanionState["status"]) => {
     const save = loadGame();
@@ -83,6 +95,10 @@ export function EventScene({ onBackToMenu, onOpenWorldMap }: EventSceneProps) {
     }
 
     setDialogueKey(getDialogueKey(action));
+  };
+
+  const askCompanionAdvice = () => {
+    setCompanionAdviceIndex((currentIndex) => currentIndex + 1);
   };
 
   return (
@@ -163,10 +179,40 @@ export function EventScene({ onBackToMenu, onOpenWorldMap }: EventSceneProps) {
               </button>
             ))}
           </div>
+        ) : showAnarielCompanionPanel ? (
+          <div className="event-scene-companion-panel">
+            <div className="event-scene-companion-header">
+              <div className="event-scene-companion-portrait" aria-hidden="true">
+                {!isCompanionPortraitMissing ? (
+                  <img
+                    src={ANARIEL_ADVICE_PORTRAIT}
+                    alt=""
+                    draggable={false}
+                    onError={() => setIsCompanionPortraitMissing(true)}
+                  />
+                ) : null}
+                <span>A</span>
+              </div>
+              <div>
+                <h2 className="event-scene-companion-name">{t("companion.anariel.name")}</h2>
+                <p>{t("companion.anariel.status")}</p>
+              </div>
+            </div>
+            <p className="event-scene-companion-advice">{t(companionAdviceKey)}</p>
+            <button
+              className="event-scene-companion-button"
+              type="button"
+              onClick={askCompanionAdvice}
+            >
+              {t("companion.advice.ask")}
+            </button>
+            <p className="event-scene-companion-note">
+              {t("companion.advice.title")}
+            </p>
+          </div>
         ) : (
           <div className="event-scene-companion-panel">
-            <h2>{t(event.speakerNameKey)}</h2>
-            <p>{t("event.ui.companionPanelPlaceholder")}</p>
+            <p>{t("companion.advice.noCompanion")}</p>
           </div>
         )}
         <p className="event-scene-footer-hint event-scene-footer-hint--close">

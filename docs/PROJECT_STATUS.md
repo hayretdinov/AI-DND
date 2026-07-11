@@ -693,3 +693,15 @@ Update date: 2026-07-11
 - Public Anariel travel assets were copied from the existing source assets without editing.
 - A fallback path uses the rags travel image first, then a dark fantasy silhouette if the image cannot load.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Anariel companion advice MVP
+
+Update date: 2026-07-11
+
+- If Anariel is travelling with the player, WorldMap now shows a small companion advice panel.
+- The `Ask for advice` button cycles through predefined mock advice lines without AI or backend calls.
+- EventScene is prepared for `companion` panel mode while keeping Anariel intro choices intact.
+- A location gate advice line is available for future gate/location events through the shared Anariel advice data.
+- If Anariel was ignored or is not travelling with the player, the WorldMap companion panel is not rendered.
+- A TODO is in place for using the same advice system in a future CampScene.
+- Build passes with `npm.cmd run build` from `client/`.
