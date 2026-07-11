@@ -705,3 +705,31 @@ Update date: 2026-07-11
 - If Anariel was ignored or is not travelling with the player, the WorldMap companion panel is not rendered.
 - A TODO is in place for using the same advice system in a future CampScene.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Anariel AI companion dialogue MVP
+
+Update date: 2026-07-11
+
+- Added a dark fantasy dialogue modal for talking with Anariel from the companion panel.
+- Dialogue is available only when Anariel is travelling with the player.
+- The MVP uses a local OpenAI-compatible LM Studio endpoint at `http://127.0.0.1:1234/v1`.
+- If Local AI is disabled or unavailable, Anariel uses deterministic fallback replies.
+- Dialogue history is stored in save data and trimmed to the latest 20 messages.
+- Relationship, trust, fear, and respect update through a simple deterministic tone analysis.
+- Settings now include Local AI base URL, model ID, and enable/disable controls.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## AI NPC and random travel events MVP
+
+Update date: 2026-07-12
+
+- Added the first reusable NPC definitions for gate guards, bandits, and monsters.
+- Added location and NPC visual assets under `client/public/assets/locations/` and `client/public/assets/npcs/`.
+- City/castle gate events now open from WorldMap and use NPC dialogue through the existing local AI client / LM Studio Vite proxy.
+- Gate access denies entry while `player.currentOutfitStage === "rags"` and shows an allowed stub for better clothing.
+- Added random travel event roll for road ambush and forest beast encounters.
+- Bandit NPC chat can use Local AI; monsters currently use atmospheric fallback reactions.
+- NPC dialogue state is stored in save data under `npcs` and safely migrates old saves.
+- `travelEvents.seenEventIds` and `activeEvent` are safely normalized in save data.
+- Anariel advice can appear in random travel events when she is travelling with the player.
+- Build passes with `npm.cmd run build` from `client/`.

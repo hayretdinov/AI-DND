@@ -18,6 +18,14 @@ import {
 } from "../data/companions/anarielAdvice";
 import { t, type TranslationKey } from "../i18n/i18n";
 import {
+  appendDialogueMessages,
+  applyAnarielToneDelta,
+  analyzePlayerTone,
+  getAnarielAiReply,
+  getFallbackReplyKey,
+} from "../systems/companions/anarielDialogue";
+import { getLocationEventById } from "../data/locationEvents";
+import {
   getConnectedNodeIds,
   getRouteBetween,
   getTravelPathCost,
@@ -34,7 +42,8 @@ import {
   type WorldMapIconType,
   type WorldMapNodeId,
 } from "../data/worldMap";
-import { loadGame, saveGame } from "../systems/save/saveSystem";
+import { rollRandomTravelEvent } from "../systems/events/randomTravelEventSystem";
+import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
 
 type WorldMapProps = {
   saveVersion: number;
@@ -243,6 +252,7 @@ export function WorldMap({
   void saveVersion;
 
   const save = loadGame();
+  const [chatSave, setChatSave] = useState<GameSave | null>(save);
   const savedLocationId = save?.currentLocationId;
   const initialLocationId = isWorldMapNodeId(savedLocationId)
     ? savedLocationId
@@ -257,6 +267,10 @@ export function WorldMap({
   const [arrivalMessage, setArrivalMessage] = useState("");
   const [anarielAdviceIndex, setAnarielAdviceIndex] = useState(0);
   const [isAnarielPortraitMissing, setIsAnarielPortraitMissing] = useState(false);
+  const [isAnarielChatOpen, setIsAnarielChatOpen] = useState(false);
+  const [anarielChatInput, setAnarielChatInput] = useState("");
+  const [isAnarielThinking, setIsAnarielThinking] = useState(false);
+  const [anarielChatNotice, setAnarielChatNotice] = useState("");
   const [currentDay, setCurrentDay] = useState(save?.currentDay ?? DEFAULT_DAY);
   const [currentHour, setCurrentHour] = useState(save?.currentHour ?? DEFAULT_HOUR);
   const [travelEnergy, setTravelEnergy] = useState(save?.travelEnergy?.currentEnergy ?? initialMaxEnergy);
@@ -290,7 +304,10 @@ export function WorldMap({
   const connectedNodeIds = useMemo(() => getConnectedNodeIds(currentLocationId), [currentLocationId]);
   const worldMapDataWarnings = useMemo(() => validateWorldMapData(), []);
   const mapEditorWarnings = validateMapEditorData();
-  const showAnarielCompanionPanel = isAnarielActiveCompanion(save);
+  const currentChatSave = chatSave ?? save;
+  const showAnarielCompanionPanel = isAnarielActiveCompanion(currentChatSave);
+  const activeAnarielState = currentChatSave?.companions?.anariel;
+  const anarielDialogueHistory = activeAnarielState?.dialogueHistory ?? [];
   const anarielAdviceKey = getAnarielWorldAdviceKey(anarielAdviceIndex);
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
@@ -385,6 +402,60 @@ export function WorldMap({
   };
   const handleAskAnarielAdvice = () => {
     setAnarielAdviceIndex((currentIndex) => currentIndex + 1);
+  };
+  const handleOpenAnarielChat = () => {
+    if (!showAnarielCompanionPanel) {
+      return;
+    }
+
+    setAnarielChatNotice("");
+    setIsAnarielChatOpen(true);
+  };
+  const handleCloseAnarielChat = () => {
+    setIsAnarielChatOpen(false);
+    setAnarielChatInput("");
+    setAnarielChatNotice("");
+  };
+  const handleSendAnarielMessage = async () => {
+    const playerText = anarielChatInput.trim();
+    const sourceSave = currentChatSave;
+    const sourceAnariel = sourceSave?.companions?.anariel;
+
+    if (!playerText || !sourceSave || !sourceAnariel || !showAnarielCompanionPanel || isAnarielThinking) {
+      return;
+    }
+
+    setIsAnarielThinking(true);
+    setAnarielChatInput("");
+
+    const tonedAnariel = applyAnarielToneDelta(sourceAnariel, analyzePlayerTone(playerText));
+    const saveForAi: GameSave = {
+      ...sourceSave,
+      companions: {
+        ...sourceSave.companions,
+        anariel: tonedAnariel,
+      },
+    };
+    const fallbackReply = t(getFallbackReplyKey(sourceAnariel.dialogueHistory.length));
+    const aiReply = await getAnarielAiReply(saveForAi, playerText);
+    const replyText = aiReply.usedFallback ? fallbackReply : aiReply.text;
+    const finalAnariel = appendDialogueMessages(tonedAnariel, playerText, replyText);
+    const nextSave: GameSave = {
+      ...sourceSave,
+      companions: {
+        ...sourceSave.companions,
+        anariel: finalAnariel,
+      },
+    };
+
+    saveGame(nextSave);
+    setChatSave(nextSave);
+    setAnarielChatNotice(
+      aiReply.usedFallback
+        ? t(aiReply.reason === "disabled" ? "companion.chat.aiDisabled" : "companion.chat.aiUnavailable")
+        : "",
+    );
+    setIsAnarielThinking(false);
   };
 
   const handleMapPointerDown = (event: PointerEvent<HTMLElement>) => {
@@ -546,6 +617,22 @@ export function WorldMap({
       return;
     }
 
+    const randomEventContext = rollRandomTravelEvent(selectedNodeId);
+
+    if (randomEventContext) {
+      saveGame({
+        ...save,
+        activeEvent: randomEventContext,
+        travelEvents: {
+          seenEventIds: Array.from(
+            new Set([...(save.travelEvents?.seenEventIds ?? []), randomEventContext.eventId]),
+          ),
+        },
+      });
+      onOpenEvent();
+      return;
+    }
+
     setTravelingTo(selectedNodeId);
     setTravelPath(selectedPath);
     setCurrentTravelStepIndex(0);
@@ -633,6 +720,24 @@ export function WorldMap({
           : `${t("worldMapArrived")} ${translateMapKey(lastReachedNode.titleKey)}.`,
       );
     }
+  };
+
+  const handleEnterLocation = () => {
+    if (!save || !currentNode.enterEventId) {
+      return;
+    }
+
+    const locationEvent = getLocationEventById(currentNode.enterEventId);
+
+    saveGame({
+      ...save,
+      activeEvent: {
+        eventId: currentNode.enterEventId,
+        npcId: locationEvent?.npcId,
+        returnTo: "worldMap",
+      },
+    });
+    onOpenEvent();
   };
 
   return (
@@ -891,6 +996,13 @@ export function WorldMap({
               >
                 {t("companion.advice.ask")}
               </button>
+              <button
+                className="world-map-companion-button"
+                type="button"
+                onClick={handleOpenAnarielChat}
+              >
+                {t("companion.chat.talk")}
+              </button>
             </aside>
           ) : null}
 
@@ -1101,10 +1213,98 @@ export function WorldMap({
                 </FantasyButton>
               )}
               {currentNode.enterEventId ? (
-                <FantasyButton onClick={onOpenEvent}>{t("worldMapEnter")}</FantasyButton>
+                <FantasyButton onClick={handleEnterLocation}>{t("worldMapEnter")}</FantasyButton>
               ) : null}
             </div>
           </div>
+
+          {isAnarielChatOpen && activeAnarielState ? (
+            <div className="companion-chat-modal" role="dialog" aria-modal="true" aria-label={t("companion.chat.title")}>
+              <button
+                className="companion-chat-backdrop"
+                type="button"
+                onClick={handleCloseAnarielChat}
+                aria-label={t("event.ui.close")}
+              />
+              <section className="companion-chat-panel">
+                <header className="companion-chat-header">
+                  <div>
+                    <h2>{t("companion.chat.title")}</h2>
+                    <p>{t("companion.anariel.status")}</p>
+                  </div>
+                  <button type="button" onClick={handleCloseAnarielChat} aria-label={t("event.ui.close")}>
+                    x
+                  </button>
+                </header>
+
+                <div className="companion-relationship-bars">
+                  {[
+                    ["companion.relationship.relationship", activeAnarielState.relationship],
+                    ["companion.relationship.trust", activeAnarielState.trust],
+                    ["companion.relationship.fear", activeAnarielState.fear],
+                    ["companion.relationship.respect", activeAnarielState.respect],
+                  ].map(([labelKey, value]) => (
+                    <div className="companion-relationship-row" key={labelKey}>
+                      <span>{t(labelKey as TranslationKey)}</span>
+                      <div className="companion-relationship-bar">
+                        <i className="companion-relationship-fill" style={{ width: `${value}%` }} />
+                      </div>
+                      <strong>{value}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="companion-chat-history" aria-live="polite">
+                  {anarielDialogueHistory.length > 0 ? (
+                    anarielDialogueHistory.map((message) => (
+                      <div
+                        className={`companion-chat-message companion-chat-message--${message.speaker}`}
+                        key={message.id}
+                      >
+                        <strong>
+                          {message.speaker === "player"
+                            ? currentChatSave?.player.name ?? t("traveler")
+                            : t("companion.anariel.name")}
+                        </strong>
+                        <p>{message.text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="companion-chat-message companion-chat-message--anariel">
+                      <strong>{t("companion.anariel.name")}</strong>
+                      <p>{t("companion.chat.empty")}</p>
+                    </div>
+                  )}
+                  {isAnarielThinking ? <p className="companion-chat-thinking">{t("companion.chat.thinking")}</p> : null}
+                </div>
+
+                {anarielChatNotice ? <p className="companion-chat-notice">{anarielChatNotice}</p> : null}
+
+                <form
+                  className="companion-chat-input-row"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSendAnarielMessage();
+                  }}
+                >
+                  <textarea
+                    className="companion-chat-input"
+                    value={anarielChatInput}
+                    onChange={(event) => setAnarielChatInput(event.target.value)}
+                    placeholder={t("companion.chat.placeholder")}
+                    rows={3}
+                  />
+                  <button
+                    className="companion-chat-send"
+                    type="submit"
+                    disabled={isAnarielThinking || anarielChatInput.trim().length === 0}
+                  >
+                    {t("companion.chat.send")}
+                  </button>
+                </form>
+              </section>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="empty-state">

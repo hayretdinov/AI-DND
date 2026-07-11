@@ -38,7 +38,7 @@ export type MapNode = {
   iconType?: WorldMapIconType;
   type: WorldMapNodeType;
   unlocked: boolean;
-  enterEventId?: "anariel_intro";
+  enterEventId?: string;
 };
 
 export type MapRoute = {
@@ -63,6 +63,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "northwest_winter_city",
     type: "location",
     unlocked: true,
+    enterEventId: "gate_winter_city",
   },
   {
     id: "western_great_city",
@@ -74,6 +75,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "western_great_city",
     type: "location",
     unlocked: true,
+    enterEventId: "gate_western_great_city",
   },
   {
     id: "camp_location",
@@ -96,6 +98,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "central_settlement",
     type: "location",
     unlocked: true,
+    enterEventId: "gate_central_settlement",
   },
   {
     id: "northern_castle",
@@ -107,6 +110,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "northern_castle",
     type: "location",
     unlocked: true,
+    enterEventId: "gate_northern_castle",
   },
   {
     id: "southern_castle",
@@ -118,6 +122,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "southern_castle",
     type: "location",
     unlocked: true,
+    enterEventId: "gate_southern_castle",
   },
   {
     id: "cave_location",

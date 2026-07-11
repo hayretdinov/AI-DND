@@ -5,7 +5,10 @@ import {
   type WorldMapNodeId,
 } from "../../data/worldMap";
 import { createDefaultInventoryState } from "../../data/inventoryMockData";
+import type { CompanionDialogueMessage } from "../../types/companion";
+import type { ActiveEventContext } from "../../types/events";
 import type { EquipmentSlot, InventoryItem, InventoryState } from "../../types/inventory";
+import type { NpcRuntimeState } from "../../types/npc";
 
 const SAVE_KEY = "ai-dnd-save";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
@@ -24,10 +27,19 @@ export type AnarielCompanionState = {
   isTravellingWithPlayer: boolean;
   introEventSeen: boolean;
   relationship: number;
+  trust: number;
+  fear: number;
+  respect: number;
+  lastDialogueSummary?: string;
+  dialogueHistory: CompanionDialogueMessage[];
 };
 
 export type CompanionsState = {
   anariel: AnarielCompanionState;
+};
+
+export type TravelEventsState = {
+  seenEventIds: string[];
 };
 
 export type GameSave = {
@@ -38,6 +50,9 @@ export type GameSave = {
   travelEnergy?: TravelEnergyState;
   inventory?: InventoryState;
   companions?: CompanionsState;
+  npcs?: Record<string, NpcRuntimeState>;
+  travelEvents?: TravelEventsState;
+  activeEvent?: ActiveEventContext | null;
 };
 
 function getStorage() {
@@ -82,6 +97,109 @@ function normalizeUnlockedOutfitStages(value: unknown): PlayerOutfitStage[] {
   const stages = Array.isArray(value) ? value.filter(isPlayerOutfitStage) : [];
 
   return stages.includes("rags") ? stages : ["rags", ...stages];
+}
+
+function clampCompanionMetric(value: unknown, fallback: number) {
+  return Number.isFinite(value) ? Math.min(100, Math.max(0, Number(value))) : fallback;
+}
+
+function normalizeDialogueHistory(value: unknown): CompanionDialogueMessage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((message): message is CompanionDialogueMessage => {
+      const candidate = message as Partial<CompanionDialogueMessage>;
+      return (
+        (candidate.speaker === "player" || candidate.speaker === "anariel") &&
+        typeof candidate.text === "string" &&
+        typeof candidate.createdAt === "string"
+      );
+    })
+    .map((message) => ({
+      id: message.id || `dialogue-${message.createdAt}`,
+      speaker: message.speaker,
+      text: message.text,
+      createdAt: message.createdAt,
+    }))
+    .slice(-20);
+}
+
+function normalizeNpcDialogueHistory(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((message) => {
+      const candidate = message as Partial<NpcRuntimeState["dialogueHistory"][number]>;
+      return (
+        (candidate.speaker === "player" || candidate.speaker === "npc") &&
+        typeof candidate.text === "string" &&
+        typeof candidate.createdAt === "string"
+      );
+    })
+    .map((message) => ({
+      id: message.id || `npc-dialogue-${message.createdAt}`,
+      speaker: message.speaker,
+      text: message.text,
+      createdAt: message.createdAt,
+    }))
+    .slice(-20);
+}
+
+function normalizeNpcState(npcId: string, value: unknown): NpcRuntimeState {
+  const source = (value ?? {}) as Partial<NpcRuntimeState>;
+
+  return {
+    npcId,
+    met: Boolean(source.met),
+    relationship: clampCompanionMetric(source.relationship, 0),
+    trust: clampCompanionMetric(source.trust, 0),
+    fear: clampCompanionMetric(source.fear, 0),
+    hostility: clampCompanionMetric(source.hostility, 0),
+    dialogueHistory: normalizeNpcDialogueHistory(source.dialogueHistory),
+  };
+}
+
+function normalizeNpcs(value: unknown): Record<string, NpcRuntimeState> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([npcId, state]) => [npcId, normalizeNpcState(npcId, state)]),
+  );
+}
+
+function normalizeTravelEvents(value: unknown): TravelEventsState {
+  const source = (value ?? {}) as Partial<TravelEventsState>;
+
+  return {
+    seenEventIds: Array.isArray(source.seenEventIds)
+      ? source.seenEventIds.filter((eventId): eventId is string => typeof eventId === "string")
+      : [],
+  };
+}
+
+function normalizeActiveEvent(value: unknown): ActiveEventContext | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const source = value as Partial<ActiveEventContext>;
+
+  if (typeof source.eventId !== "string") {
+    return null;
+  }
+
+  return {
+    eventId: source.eventId,
+    npcId: typeof source.npcId === "string" ? source.npcId : undefined,
+    returnTo: "worldMap",
+    pendingTravelTargetId: isWorldMapNodeId(source.pendingTravelTargetId) ? source.pendingTravelTargetId : undefined,
+  };
 }
 
 function normalizeTravelEnergy(data: Partial<GameSave>): TravelEnergyState {
@@ -149,6 +267,10 @@ export function createInitialAnarielCompanionState(): AnarielCompanionState {
     isTravellingWithPlayer: false,
     introEventSeen: false,
     relationship: 0,
+    trust: 0,
+    fear: 0,
+    respect: 0,
+    dialogueHistory: [],
   };
 }
 
@@ -159,6 +281,10 @@ function getMigratedAnarielCompanionState(): AnarielCompanionState {
     isTravellingWithPlayer: false,
     introEventSeen: true,
     relationship: 0,
+    trust: 0,
+    fear: 0,
+    respect: 0,
+    dialogueHistory: [],
   };
 }
 
@@ -179,7 +305,12 @@ function normalizeAnarielCompanionState(data: Partial<GameSave>): AnarielCompani
     status: normalizedStatus,
     isTravellingWithPlayer: Boolean(sourceState?.isTravellingWithPlayer ?? fallbackState.isTravellingWithPlayer),
     introEventSeen: Boolean(sourceState?.introEventSeen ?? fallbackState.introEventSeen),
-    relationship,
+    relationship: clampCompanionMetric(relationship, fallbackState.relationship),
+    trust: clampCompanionMetric(sourceState?.trust, fallbackState.trust),
+    fear: clampCompanionMetric(sourceState?.fear, fallbackState.fear),
+    respect: clampCompanionMetric(sourceState?.respect, fallbackState.respect),
+    lastDialogueSummary: typeof sourceState?.lastDialogueSummary === "string" ? sourceState.lastDialogueSummary : undefined,
+    dialogueHistory: normalizeDialogueHistory(sourceState?.dialogueHistory),
   };
 }
 
@@ -317,6 +448,9 @@ function normalizeSave(data: GameSave) {
     currentHour: Number.isFinite(data.currentHour) ? data.currentHour : DEFAULT_HOUR,
     companions: normalizeCompanions(data),
     inventory: normalizeInventory(data),
+    npcs: normalizeNpcs(data.npcs),
+    travelEvents: normalizeTravelEvents(data.travelEvents),
+    activeEvent: normalizeActiveEvent(data.activeEvent),
     travelEnergy: normalizeTravelEnergy(data),
     player: normalizedPlayer,
   };
@@ -329,6 +463,9 @@ function normalizeSave(data: GameSave) {
     normalizedSave.travelEnergy?.lastRestDay !== data.travelEnergy?.lastRestDay ||
     JSON.stringify(normalizedSave.companions) !== JSON.stringify(data.companions) ||
     JSON.stringify(normalizedSave.inventory) !== JSON.stringify(data.inventory) ||
+    JSON.stringify(normalizedSave.npcs) !== JSON.stringify(data.npcs) ||
+    JSON.stringify(normalizedSave.travelEvents) !== JSON.stringify(data.travelEvents) ||
+    JSON.stringify(normalizedSave.activeEvent) !== JSON.stringify(data.activeEvent ?? null) ||
     normalizedSave.player.currentOutfitStage !== data.player.currentOutfitStage ||
     JSON.stringify(normalizedSave.player.unlockedOutfitStages) !==
       JSON.stringify(data.player.unlockedOutfitStages) ||
