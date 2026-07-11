@@ -35,7 +35,7 @@
 | Swamp icon | `client/public/assets/world-map/icons/swamp_location.png` | Swamp location marker | added |
 | Waterfall icon | `client/public/assets/world-map/icons/waterfall_location.png` | Waterfall location marker | added |
 | Volcanic lava icon | `client/public/assets/world-map/icons/volcanic_lava_location.png` | Volcanic lava location marker | added |
-| Road point marker | `client/public/assets/world-map/icons/road_point_marker.png` | Regular road point / route node marker | added |
+| Road point marker | `client/public/assets/world-map/icons/road_point_marker.png` | Deprecated road point / route node marker | removed |
 | Player portrait frame | `client/public/assets/world-map/ui/player_portrait_frame.png` | Top-left character portrait frame | added |
 | Left panel | `client/public/assets/world-map/ui/left_panel.png` | Left UI panel | added |
 | Bottom panel | `client/public/assets/world-map/ui/bottom_panel.png` | Bottom UI panel | added |

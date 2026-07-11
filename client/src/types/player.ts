@@ -3,6 +3,7 @@ export type PlayerRace = "human" | "elf" | "dwarf" | "orc";
 export type PlayerGender = "male" | "female";
 export type PlayerClass = "warrior" | "rogue" | "mage";
 export type PlayerAppearance = "wanderer" | "iron" | "ash";
+export type PlayerOutfitStage = "rags" | "clothes" | "armor";
 
 export type Attributes = {
   strength: number;
@@ -27,6 +28,8 @@ export type PlayerCharacter = {
   gender: PlayerGender;
   characterClass: PlayerClass;
   appearance: PlayerAppearance;
+  currentOutfitStage: PlayerOutfitStage;
+  unlockedOutfitStages?: PlayerOutfitStage[];
   portraitUrl: string;
   attributes: Attributes;
   derivedStats: DerivedStats;

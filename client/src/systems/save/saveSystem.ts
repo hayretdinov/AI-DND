@@ -1,5 +1,9 @@
-import type { PlayerCharacter } from "../../types/player";
-import type { WorldMapNodeId } from "../../data/worldMap";
+import type { PlayerCharacter, PlayerOutfitStage } from "../../types/player";
+import {
+  WORLD_MAP_START_NODE_ID,
+  isWorldMapNodeId,
+  type WorldMapNodeId,
+} from "../../data/worldMap";
 import { createDefaultInventoryState } from "../../data/inventoryMockData";
 import type { EquipmentSlot, InventoryItem, InventoryState } from "../../types/inventory";
 
@@ -54,9 +58,30 @@ function getFallbackPortraitUrl(player: PlayerCharacter) {
     ash: "clothing",
     iron: "armor",
   };
-  const visual = visualByAppearance[player.appearance] ?? "starting";
+  const visualByOutfitStage: Record<PlayerOutfitStage, string> = {
+    rags: "starting",
+    clothes: "clothing",
+    armor: "armor",
+  };
+  const visual = player.currentOutfitStage
+    ? visualByOutfitStage[player.currentOutfitStage]
+    : visualByAppearance[player.appearance] ?? "starting";
 
   return `/assets/characters/player/${player.race}/${player.gender}/${player.race}-${player.gender}-${visual}.png`;
+}
+
+function isPlayerOutfitStage(value: unknown): value is PlayerOutfitStage {
+  return value === "rags" || value === "clothes" || value === "armor";
+}
+
+function normalizePlayerOutfitStage(value: unknown): PlayerOutfitStage {
+  return isPlayerOutfitStage(value) ? value : "rags";
+}
+
+function normalizeUnlockedOutfitStages(value: unknown): PlayerOutfitStage[] {
+  const stages = Array.isArray(value) ? value.filter(isPlayerOutfitStage) : [];
+
+  return stages.includes("rags") ? stages : ["rags", ...stages];
 }
 
 function normalizeTravelEnergy(data: Partial<GameSave>): TravelEnergyState {
@@ -75,6 +100,46 @@ function normalizeTravelEnergy(data: Partial<GameSave>): TravelEnergyState {
     : currentDay;
 
   return { currentEnergy, maxEnergy, lastRestDay };
+}
+
+function migrateLegacyWorldMapLocationId(locationId: unknown): WorldMapNodeId {
+  if (isWorldMapNodeId(locationId)) {
+    return locationId;
+  }
+
+  if (typeof locationId !== "string") {
+    return WORLD_MAP_START_NODE_ID;
+  }
+
+  if (locationId.startsWith("road_center") || locationId === "road_east_01") {
+    return "central_settlement";
+  }
+
+  if (locationId.startsWith("road_west") || locationId.startsWith("road_southwest")) {
+    return "western_great_city";
+  }
+
+  if (locationId.startsWith("road_south")) {
+    return "southern_castle";
+  }
+
+  if (locationId.startsWith("road_north") || locationId === "road_lake_crossing") {
+    return "northern_castle";
+  }
+
+  if (locationId.startsWith("road_marsh")) {
+    return "swamp_location";
+  }
+
+  if (locationId.startsWith("road_dark") || locationId.includes("necropolis")) {
+    return "necropolis_skull_castle";
+  }
+
+  if (locationId.startsWith("road_volcanic")) {
+    return "volcanic_lava_location";
+  }
+
+  return WORLD_MAP_START_NODE_ID;
 }
 
 export function createInitialAnarielCompanionState(): AnarielCompanionState {
@@ -230,19 +295,32 @@ function normalizeInventory(data: Partial<GameSave>): InventoryState {
 }
 
 function normalizeSave(data: GameSave) {
+  const currentOutfitStage = normalizePlayerOutfitStage(data.player.currentOutfitStage);
+  const unlockedOutfitStages = normalizeUnlockedOutfitStages(data.player.unlockedOutfitStages);
+  const normalizedPlayer = {
+    ...data.player,
+    currentOutfitStage,
+    unlockedOutfitStages,
+    portraitUrl:
+      data.player.portraitUrl ||
+      getFallbackPortraitUrl({
+        ...data.player,
+        currentOutfitStage,
+        unlockedOutfitStages,
+      }),
+  };
   const normalizedSave: GameSave = {
     ...data,
+    currentLocationId: migrateLegacyWorldMapLocationId(data.currentLocationId),
     currentDay: Number.isFinite(data.currentDay) ? data.currentDay : DEFAULT_DAY,
     currentHour: Number.isFinite(data.currentHour) ? data.currentHour : DEFAULT_HOUR,
     companions: normalizeCompanions(data),
     inventory: normalizeInventory(data),
     travelEnergy: normalizeTravelEnergy(data),
-    player: {
-      ...data.player,
-      portraitUrl: data.player.portraitUrl || getFallbackPortraitUrl(data.player),
-    },
+    player: normalizedPlayer,
   };
   const changed =
+    normalizedSave.currentLocationId !== data.currentLocationId ||
     normalizedSave.currentDay !== data.currentDay ||
     normalizedSave.currentHour !== data.currentHour ||
     normalizedSave.travelEnergy?.currentEnergy !== data.travelEnergy?.currentEnergy ||
@@ -250,6 +328,9 @@ function normalizeSave(data: GameSave) {
     normalizedSave.travelEnergy?.lastRestDay !== data.travelEnergy?.lastRestDay ||
     JSON.stringify(normalizedSave.companions) !== JSON.stringify(data.companions) ||
     JSON.stringify(normalizedSave.inventory) !== JSON.stringify(data.inventory) ||
+    normalizedSave.player.currentOutfitStage !== data.player.currentOutfitStage ||
+    JSON.stringify(normalizedSave.player.unlockedOutfitStages) !==
+      JSON.stringify(data.player.unlockedOutfitStages) ||
     normalizedSave.player.portraitUrl !== data.player.portraitUrl;
 
   return { save: normalizedSave, changed };

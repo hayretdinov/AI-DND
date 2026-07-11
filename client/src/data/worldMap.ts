@@ -10,24 +10,9 @@ export type WorldMapNodeId =
   | "necropolis_skull_castle"
   | "swamp_location"
   | "waterfall_location"
-  | "volcanic_lava_location"
-  | "road_west_01"
-  | "road_west_02"
-  | "road_center_01"
-  | "road_center_north_01"
-  | "road_lake_crossing"
-  | "road_north_pass_01"
-  | "road_volcanic_01"
-  | "road_southwest_01"
-  | "road_southwest_02"
-  | "road_south_01"
-  | "road_southeast_01"
-  | "road_east_01"
-  | "road_dark_fork_01"
-  | "road_marsh_01"
-  | "road_marsh_02";
+  | "volcanic_lava_location";
 
-export type WorldMapNodeType = "location" | "road_point" | "danger_point" | "camp_point";
+export type WorldMapNodeType = "location" | "danger_point" | "camp_point";
 
 export type WorldMapIconType =
   | "northwest_winter_city"
@@ -41,8 +26,7 @@ export type WorldMapIconType =
   | "necropolis"
   | "swamp"
   | "waterfall"
-  | "volcanic_lava"
-  | "road_point";
+  | "volcanic_lava";
 
 export type MapNode = {
   id: WorldMapNodeId;
@@ -54,6 +38,7 @@ export type MapNode = {
   iconType?: WorldMapIconType;
   type: WorldMapNodeType;
   unlocked: boolean;
+  enterEventId?: "anariel_intro";
 };
 
 export type MapRoute = {
@@ -94,8 +79,8 @@ export const worldMapNodes: MapNode[] = [
     id: "camp_location",
     titleKey: "worldMapCampLocationTitle",
     descriptionKey: "worldMapCampLocationDescription",
-    x: 65.1,
-    y: 44.3,
+    x: 48.8,
+    y: 65.5,
     icon: "C",
     iconType: "camp",
     type: "camp_point",
@@ -138,8 +123,8 @@ export const worldMapNodes: MapNode[] = [
     id: "cave_location",
     titleKey: "worldMapCaveLocationTitle",
     descriptionKey: "worldMapCaveLocationDescription",
-    x: 71.6,
-    y: 51.8,
+    x: 97.7,
+    y: 40.8,
     icon: "V",
     iconType: "cave",
     type: "danger_point",
@@ -149,8 +134,8 @@ export const worldMapNodes: MapNode[] = [
     id: "portal_location",
     titleKey: "worldMapPortalLocationTitle",
     descriptionKey: "worldMapPortalLocationDescription",
-    x: 90.3,
-    y: 82.3,
+    x: 96.1,
+    y: 87.2,
     icon: "P",
     iconType: "portal",
     type: "danger_point",
@@ -165,14 +150,15 @@ export const worldMapNodes: MapNode[] = [
     icon: "D",
     iconType: "necropolis",
     type: "danger_point",
-    unlocked: false,
+    unlocked: true,
+    enterEventId: "anariel_intro",
   },
   {
     id: "swamp_location",
     titleKey: "worldMapSwampLocationTitle",
     descriptionKey: "worldMapSwampLocationDescription",
-    x: 83.7,
-    y: 66.8,
+    x: 72.3,
+    y: 64.2,
     icon: "B",
     iconType: "swamp",
     type: "danger_point",
@@ -182,7 +168,7 @@ export const worldMapNodes: MapNode[] = [
     id: "waterfall_location",
     titleKey: "worldMapWaterfallLocationTitle",
     descriptionKey: "worldMapWaterfallLocationDescription",
-    x: 67.0,
+    x: 60.5,
     y: 91.0,
     icon: "F",
     iconType: "waterfall",
@@ -198,199 +184,25 @@ export const worldMapNodes: MapNode[] = [
     icon: "L",
     iconType: "volcanic_lava",
     type: "danger_point",
-    unlocked: false,
-  },
-  {
-    id: "road_west_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 28.8,
-    y: 75.7,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_west_02",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 36.2,
-    y: 81.2,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_center_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 43.3,
-    y: 63.9,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_center_north_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 46.2,
-    y: 43.4,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_lake_crossing",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 37.7,
-    y: 36.8,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_north_pass_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 54.8,
-    y: 28.4,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_volcanic_01",
-    titleKey: "worldMapDangerPointTitle",
-    descriptionKey: "worldMapDangerPointDescription",
-    x: 63.8,
-    y: 19.8,
-    icon: "",
-    type: "danger_point",
-    unlocked: true,
-  },
-  {
-    id: "road_southwest_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 28.7,
-    y: 76.1,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_southwest_02",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 37.9,
-    y: 81.7,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_south_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 40.6,
-    y: 91.0,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_southeast_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 54.2,
-    y: 78.0,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_east_01",
-    titleKey: "worldMapRoadPointTitle",
-    descriptionKey: "worldMapRoadPointDescription",
-    x: 57.4,
-    y: 55.6,
-    icon: "",
-    iconType: "road_point",
-    type: "road_point",
-    unlocked: true,
-  },
-  {
-    id: "road_dark_fork_01",
-    titleKey: "worldMapDangerPointTitle",
-    descriptionKey: "worldMapDangerPointDescription",
-    x: 68.6,
-    y: 51.8,
-    icon: "",
-    type: "danger_point",
-    unlocked: true,
-  },
-  {
-    id: "road_marsh_01",
-    titleKey: "worldMapDangerPointTitle",
-    descriptionKey: "worldMapDangerPointDescription",
-    x: 70.5,
-    y: 62.9,
-    icon: "",
-    type: "danger_point",
-    unlocked: true,
-  },
-  {
-    id: "road_marsh_02",
-    titleKey: "worldMapDangerPointTitle",
-    descriptionKey: "worldMapDangerPointDescription",
-    x: 78.2,
-    y: 71.8,
-    icon: "",
-    type: "danger_point",
     unlocked: true,
   },
 ];
 
 export const worldMapRoutes: MapRoute[] = [
-  { from: "western_great_city", to: "road_west_01", dangerLevel: 0, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_west_01", to: "road_west_02", dangerLevel: 0, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_west_02", to: "camp_location", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "camp_location", to: "central_settlement", dangerLevel: 0, travelTimeHours: 1, energyCost: 1 },
-  { from: "camp_location", to: "road_center_01", dangerLevel: 0, travelTimeHours: 1, energyCost: 1 },
-  { from: "road_center_01", to: "road_southwest_02", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "western_great_city", to: "road_southwest_01", dangerLevel: 0, travelTimeHours: 1, energyCost: 1 },
-  { from: "road_southwest_01", to: "road_southwest_02", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_southwest_02", to: "road_south_01", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_south_01", to: "southern_castle", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "southern_castle", to: "road_southeast_01", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_southeast_01", to: "waterfall_location", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "central_settlement", to: "road_center_north_01", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_center_north_01", to: "northern_castle", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "northern_castle", to: "road_lake_crossing", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_lake_crossing", to: "northwest_winter_city", dangerLevel: 2, travelTimeHours: 3, energyCost: 2 },
-  { from: "northern_castle", to: "road_north_pass_01", dangerLevel: 2, travelTimeHours: 3, energyCost: 2 },
-  { from: "road_north_pass_01", to: "road_volcanic_01", dangerLevel: 3, travelTimeHours: 3, energyCost: 2 },
-  { from: "road_volcanic_01", to: "volcanic_lava_location", dangerLevel: 4, travelTimeHours: 4, energyCost: 3 },
-  { from: "central_settlement", to: "road_east_01", dangerLevel: 1, travelTimeHours: 2, energyCost: 1 },
-  { from: "road_east_01", to: "road_dark_fork_01", dangerLevel: 2, travelTimeHours: 3, energyCost: 2 },
-  { from: "road_dark_fork_01", to: "cave_location", dangerLevel: 2, travelTimeHours: 2, energyCost: 2 },
-  { from: "cave_location", to: "necropolis_skull_castle", dangerLevel: 4, travelTimeHours: 4, energyCost: 3 },
-  { from: "road_east_01", to: "road_marsh_01", dangerLevel: 2, travelTimeHours: 3, energyCost: 2 },
-  { from: "road_marsh_01", to: "road_marsh_02", dangerLevel: 2, travelTimeHours: 3, energyCost: 2 },
-  { from: "road_marsh_02", to: "swamp_location", dangerLevel: 3, travelTimeHours: 3, energyCost: 2 },
-  { from: "swamp_location", to: "portal_location", dangerLevel: 4, travelTimeHours: 4, energyCost: 3 },
+  { from: "western_great_city", to: "camp_location", dangerLevel: 1, travelTimeHours: 6, energyCost: 8 },
+  { from: "western_great_city", to: "central_settlement", dangerLevel: 1, travelTimeHours: 8, energyCost: 12 },
+  { from: "camp_location", to: "central_settlement", dangerLevel: 0, travelTimeHours: 3, energyCost: 5 },
+  { from: "central_settlement", to: "northern_castle", dangerLevel: 1, travelTimeHours: 7, energyCost: 16 },
+  { from: "central_settlement", to: "southern_castle", dangerLevel: 1, travelTimeHours: 8, energyCost: 18 },
+  { from: "central_settlement", to: "swamp_location", dangerLevel: 2, travelTimeHours: 8, energyCost: 22 },
+  { from: "northern_castle", to: "northwest_winter_city", dangerLevel: 2, travelTimeHours: 7, energyCost: 18 },
+  { from: "northern_castle", to: "volcanic_lava_location", dangerLevel: 4, travelTimeHours: 8, energyCost: 26 },
+  { from: "northern_castle", to: "portal_location", dangerLevel: 3, travelTimeHours: 10, energyCost: 28 },
+  { from: "southern_castle", to: "waterfall_location", dangerLevel: 1, travelTimeHours: 4, energyCost: 10 },
+  { from: "swamp_location", to: "necropolis_skull_castle", dangerLevel: 4, travelTimeHours: 6, energyCost: 18 },
+  { from: "swamp_location", to: "portal_location", dangerLevel: 4, travelTimeHours: 5, energyCost: 18 },
+  { from: "necropolis_skull_castle", to: "cave_location", dangerLevel: 4, travelTimeHours: 5, energyCost: 16 },
+  { from: "necropolis_skull_castle", to: "volcanic_lava_location", dangerLevel: 4, travelTimeHours: 9, energyCost: 28 },
 ];
 
 export function getWorldMapNodeById(id: WorldMapNodeId) {

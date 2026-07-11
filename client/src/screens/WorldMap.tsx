@@ -79,7 +79,6 @@ const worldMapIconAssets: Record<WorldMapIconType, string> = {
   swamp: "/assets/world-map/icons/swamp_location.png",
   waterfall: "/assets/world-map/icons/waterfall_location.png",
   volcanic_lava: "/assets/world-map/icons/volcanic_lava_location.png",
-  road_point: "/assets/world-map/icons/road_point_marker.png",
 };
 
 function translateMapKey(key: string) {
@@ -629,19 +628,21 @@ export function WorldMap({
       {save ? (
         <div className="world-map-screen">
           <div className="world-map-ui-top" aria-label={t("worldMapTopPanel")}>
-            <div>
-              <span>{t("worldMapDay")}</span>
-              <strong>{currentDay}</strong>
-            </div>
-            <div>
-              <span>{t("worldMapHour")}</span>
-              <strong>{formatHour(currentHour)}</strong>
-            </div>
-            <div>
-              <span>{t("worldMapTravelEnergy")}</span>
-              <strong>
-                {travelEnergy}/{travelEnergyMax}
-              </strong>
+            <div className="world-map-ui-top-content">
+              <div>
+                <span>{t("worldMapDay")}</span>
+                <strong>{currentDay}</strong>
+              </div>
+              <div>
+                <span>{t("worldMapHour")}</span>
+                <strong>{formatHour(currentHour)}</strong>
+              </div>
+              <div>
+                <span>{t("worldMapTravelEnergy")}</span>
+                <strong>
+                  {travelEnergy}/{travelEnergyMax}
+                </strong>
+              </div>
             </div>
           </div>
 
@@ -774,12 +775,7 @@ export function WorldMap({
                 const isSelected = node.id === selectedNodeId;
                 const title = translateMapKey(node.titleKey);
                 const hasMapIcon = Boolean(node.iconType);
-                const isRoadPointIcon = node.iconType === "road_point";
-                const markerClassName = isRoadPointIcon
-                  ? "world-map-road-point-icon"
-                  : hasMapIcon
-                    ? "world-map-icon"
-                    : "world-map-road-marker";
+                const markerClassName = hasMapIcon ? "world-map-icon" : "world-map-road-marker";
                 const previewPosition = previewNodePositions[node.id];
                 const nodePosition = previewPosition ?? { x: node.x, y: node.y };
 
@@ -791,8 +787,7 @@ export function WorldMap({
                       "world-map-node",
                       `world-map-node--${node.type}`,
                       `world-map-node--${statusClass}`,
-                      node.type === "road_point" ? "world-map-node--road-point" : "",
-                      !hasMapIcon || isRoadPointIcon ? "world-map-node--minor" : "",
+                      !hasMapIcon ? "world-map-node--minor" : "",
                       isSelected ? "world-map-node--selected" : "",
                       previewPosition ? "world-map-node--preview" : "",
                     ]
@@ -818,7 +813,7 @@ export function WorldMap({
                           }}
                         />
                       ) : null}
-                      {hasMapIcon && !isRoadPointIcon ? <span className="map-fallback-icon">{node.icon}</span> : null}
+                      {hasMapIcon ? <span className="map-fallback-icon">{node.icon}</span> : null}
                     </span>
                     <span className="world-map-node__label">{title}</span>
                   </button>
@@ -1053,18 +1048,22 @@ export function WorldMap({
           </aside>
 
           <div className="world-map-ui-bottom">
-            <div>
-              <span>{t("worldMapCurrentLocation")}</span>
-              <strong>{translateMapKey(currentNode.titleKey)}</strong>
+            <div className="world-map-ui-bottom-content">
+              <div>
+                <span>{t("worldMapCurrentLocation")}</span>
+                <strong>{translateMapKey(currentNode.titleKey)}</strong>
+              </div>
+              {selectedStatus === "current" ? (
+                <p className="world-map-info__here">{t("worldMapYouAreHere")}</p>
+              ) : (
+                <FantasyButton onClick={handleTravel} disabled={!canTravel} variant="primary">
+                  {travelingTo ? t("worldMapTraveling") : t("worldMapTravel")}
+                </FantasyButton>
+              )}
+              {currentNode.enterEventId ? (
+                <FantasyButton onClick={onOpenEvent}>{t("worldMapEnter")}</FantasyButton>
+              ) : null}
             </div>
-            {selectedStatus === "current" ? (
-              <p className="world-map-info__here">{t("worldMapYouAreHere")}</p>
-            ) : (
-              <FantasyButton onClick={handleTravel} disabled={!canTravel} variant="primary">
-                {travelingTo ? t("worldMapTraveling") : t("worldMapTravel")}
-              </FantasyButton>
-            )}
-            <FantasyButton onClick={onOpenEvent}>{t("worldMapCampRest")}</FantasyButton>
           </div>
         </div>
       ) : (

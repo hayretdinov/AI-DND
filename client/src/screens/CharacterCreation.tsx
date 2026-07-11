@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { t, type TranslationKey } from "../i18n/i18n";
 import { saveGame } from "../systems/save/saveSystem";
 import type {
   Attributes,
@@ -7,6 +8,7 @@ import type {
   PlayerClass,
   PlayerGender,
   PlayerOrigin,
+  PlayerOutfitStage,
   PlayerRace,
 } from "../types/player";
 
@@ -17,7 +19,7 @@ type CharacterCreationProps = {
 
 type CreationStep = "race" | "gender" | "class" | "background" | "equipment";
 type BackgroundChoice = "outcast" | "mercenary" | "mageApprentice";
-type EquipmentChoice = "rags" | "commonClothes" | "armor";
+type EquipmentChoice = PlayerOutfitStage;
 type EquipmentVisual = "starting" | "clothing" | "armor";
 
 type SelectorOption<T extends string> = {
@@ -61,9 +63,23 @@ const BACKGROUND_OPTIONS: Array<SelectorOption<BackgroundChoice>> = [
 
 const EQUIPMENT_OPTIONS: Array<SelectorOption<EquipmentChoice>> = [
   { id: "rags", label: "Лахмотья", symbol: "I" },
-  { id: "commonClothes", label: "Обычная одежда", symbol: "II" },
+  { id: "clothes", label: "Обычная одежда", symbol: "II" },
   { id: "armor", label: "Доспех", symbol: "III" },
 ];
+
+const STARTING_OUTFIT_STAGE: PlayerOutfitStage = "rags";
+
+const OUTFIT_STAGE_LABEL_KEYS: Record<PlayerOutfitStage, TranslationKey> = {
+  rags: "characterCreation.outfitRags",
+  clothes: "characterCreation.outfitClothes",
+  armor: "characterCreation.outfitArmor",
+};
+
+const OUTFIT_STAGE_DESCRIPTION_KEYS: Record<PlayerOutfitStage, TranslationKey> = {
+  rags: "characterCreation.outfitRagsDescription",
+  clothes: "characterCreation.outfitClothesDescription",
+  armor: "characterCreation.outfitArmorDescription",
+};
 
 const ATTRIBUTE_NAMES: Array<keyof Attributes> = [
   "strength",
@@ -125,7 +141,7 @@ const BACKGROUND_DESCRIPTION: Record<BackgroundChoice, string> = {
 
 const EQUIPMENT_DESCRIPTION: Record<EquipmentChoice, string> = {
   rags: "Лёгкие лохмотья не защищают, но не мешают двигаться.",
-  commonClothes: "Простая одежда путника, пережившая пыль, холод и дождь.",
+  clothes: "Простая одежда путника, пережившая пыль, холод и дождь.",
   armor: "Грубый доспех даёт уверенность тем, кто ждёт первого удара.",
 };
 
@@ -150,13 +166,13 @@ const ORIGIN_BY_BACKGROUND: Record<BackgroundChoice, PlayerOrigin> = {
 
 const APPEARANCE_BY_EQUIPMENT: Record<EquipmentChoice, PlayerAppearance> = {
   rags: "wanderer",
-  commonClothes: "ash",
+  clothes: "ash",
   armor: "iron",
 };
 
 const CHARACTER_VISUAL_BY_EQUIPMENT: Record<EquipmentChoice, EquipmentVisual> = {
   rags: "starting",
-  commonClothes: "clothing",
+  clothes: "clothing",
   armor: "armor",
 };
 
@@ -198,7 +214,8 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
   const [gender, setGender] = useState<PlayerGender>("male");
   const [characterClass, setCharacterClass] = useState<PlayerClass>("warrior");
   const [background, setBackground] = useState<BackgroundChoice>("outcast");
-  const [equipment, setEquipment] = useState<EquipmentChoice>("rags");
+  const [previewOutfitStage, setPreviewOutfitStage] =
+    useState<PlayerOutfitStage>(STARTING_OUTFIT_STAGE);
   const [attributes, setAttributes] = useState<Attributes>(INITIAL_ATTRIBUTES);
 
   const derivedStats = useMemo(() => getDerivedStats(attributes), [attributes]);
@@ -213,7 +230,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
   const selectedBackground =
     BACKGROUND_OPTIONS.find((option) => option.id === background) ?? BACKGROUND_OPTIONS[0];
   const selectedEquipment =
-    EQUIPMENT_OPTIONS.find((option) => option.id === equipment) ?? EQUIPMENT_OPTIONS[0];
+    EQUIPMENT_OPTIONS.find((option) => option.id === previewOutfitStage) ?? EQUIPMENT_OPTIONS[0];
   const visualStep = pendingStep ?? activeStep;
   const isRotatingStepRing = pendingStep !== null;
   const activeStepIndex = Math.max(
@@ -290,7 +307,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
     gender,
     class: characterClass,
     background,
-    equipment,
+    equipment: previewOutfitStage,
   }[activeStep];
 
   const selectorTitle = {
@@ -319,7 +336,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
     }
 
     if (activeStep === "equipment") {
-      setEquipment(id as EquipmentChoice);
+      setPreviewOutfitStage(id as PlayerOutfitStage);
     }
   };
 
@@ -336,7 +353,8 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
       return;
     }
 
-    const portraitUrl = getCharacterImage(race, gender, equipment);
+    const startingOutfitStage = STARTING_OUTFIT_STAGE;
+    const portraitUrl = getCharacterImage(race, gender, startingOutfitStage);
 
     saveGame({
       player: {
@@ -346,7 +364,9 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         race,
         gender,
         characterClass,
-        appearance: APPEARANCE_BY_EQUIPMENT[equipment],
+        appearance: APPEARANCE_BY_EQUIPMENT[startingOutfitStage],
+        currentOutfitStage: startingOutfitStage,
+        unlockedOutfitStages: [startingOutfitStage],
         portraitUrl,
         attributes,
         derivedStats,
@@ -406,7 +426,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         <div className="creation-character-stage__light" aria-hidden="true" />
         <img
           className={`creation-character-image creation-character-image--${race}`}
-          src={getCharacterImage(race, gender, equipment)}
+          src={getCharacterImage(race, gender, previewOutfitStage)}
           alt={`${selectedRace.label}, ${selectedGender.label}`}
         />
         <div className="creation-character-stage__pedestal" aria-hidden="true" />
@@ -418,6 +438,48 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
             <h1 id="character-creation-title">{trimmedCharacterName || selectedRace.label}</h1>
             <span>Создание персонажа</span>
           </div>
+
+          <section
+            className="character-appearance-preview"
+            aria-label={t("characterCreation.appearancePreview")}
+          >
+            <h2>{t("characterCreation.appearancePreview")}</h2>
+            <div
+              className="character-outfit-tabs"
+              role="tablist"
+              aria-label={t("characterCreation.outfitStage")}
+            >
+              {EQUIPMENT_OPTIONS.map((option) => {
+                const isActive = previewOutfitStage === option.id;
+
+                return (
+                  <button
+                    className={`character-outfit-tab ${isActive ? "character-outfit-tab--active" : ""}`}
+                    key={option.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setPreviewOutfitStage(option.id)}
+                  >
+                    <span className="character-outfit-stage-label">
+                      {t(OUTFIT_STAGE_LABEL_KEYS[option.id])}
+                    </span>
+                    {option.id !== STARTING_OUTFIT_STAGE ? (
+                      <span className="character-outfit-stage-locked">
+                        {t("characterCreation.unlockedLater")}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="character-outfit-description">
+              {t(OUTFIT_STAGE_DESCRIPTION_KEYS[previewOutfitStage])}
+            </p>
+            <p className="character-outfit-preview-note">
+              {t("characterCreation.outfitPreviewOnly")}
+            </p>
+          </section>
 
           <div className="creation-point-summary">
             <span>Очки характеристик</span>

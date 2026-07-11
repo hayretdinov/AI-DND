@@ -657,3 +657,27 @@ Update date: 2026-07-11
 - Final choices let the player take Anariel with them or start the journey together.
 - Anariel companion state is saved only after the final second-step choice: `met`, `rescued`, `isTravellingWithPlayer`, `introEventSeen`, and relationship are updated.
 - A TODO remains for replacing the choice panel with a future companion dialogue/advice panel after Anariel becomes an active companion.
+
+## World Map simplified to major locations
+
+Update date: 2026-07-11
+
+- Intermediate road points were removed from `worldMapNodes` and `worldMapRoutes`.
+- WorldMap now contains only the 12 major location nodes and direct routes between them.
+- Travel, pathfinding, animated player marker, per-segment energy spending, and the dashed arrow now operate between major locations.
+- The road point marker asset was removed and marked as removed in `docs/ASSET_MANIFEST.md`.
+- Node editor now lists only the remaining major location nodes because road point nodes no longer exist.
+- Enter events are limited to remaining nodes with `enterEventId`.
+- Old saves with removed `road_*` current locations migrate to the nearest logical major location and are written back through the existing save normalization.
+
+## Character outfit preview and wide map panels
+
+Update date: 2026-07-11
+
+- CharacterCreation now has a three-stage outfit preview: rags, simple clothes, and armor.
+- Outfit preview changes only the displayed character image; new characters still start in `currentOutfitStage: "rags"`.
+- New saves store `currentOutfitStage: "rags"` and `unlockedOutfitStages: ["rags"]`.
+- Old saves safely migrate missing outfit fields during save normalization.
+- WorldMap top and bottom PNG panels now stretch almost across the full viewport with `background-size: 100% 100%`.
+- No new image assets were added and existing map, character, Anariel, travel, pan/zoom, and node editor behavior were kept intact.
+- Build passes with `npm.cmd run build` from `client/`.
