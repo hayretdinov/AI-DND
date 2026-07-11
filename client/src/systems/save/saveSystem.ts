@@ -14,6 +14,18 @@ export type TravelEnergyState = {
   lastRestDay: number;
 };
 
+export type AnarielCompanionState = {
+  met: boolean;
+  status: "unknown" | "rescued" | "ignored";
+  isTravellingWithPlayer: boolean;
+  introEventSeen: boolean;
+  relationship: number;
+};
+
+export type CompanionsState = {
+  anariel: AnarielCompanionState;
+};
+
 export type GameSave = {
   player: PlayerCharacter;
   currentLocationId?: WorldMapNodeId;
@@ -21,6 +33,7 @@ export type GameSave = {
   currentHour?: number;
   travelEnergy?: TravelEnergyState;
   inventory?: InventoryState;
+  companions?: CompanionsState;
 };
 
 function getStorage() {
@@ -62,6 +75,52 @@ function normalizeTravelEnergy(data: Partial<GameSave>): TravelEnergyState {
     : currentDay;
 
   return { currentEnergy, maxEnergy, lastRestDay };
+}
+
+export function createInitialAnarielCompanionState(): AnarielCompanionState {
+  return {
+    met: false,
+    status: "unknown",
+    isTravellingWithPlayer: false,
+    introEventSeen: false,
+    relationship: 0,
+  };
+}
+
+function getMigratedAnarielCompanionState(): AnarielCompanionState {
+  return {
+    met: false,
+    status: "unknown",
+    isTravellingWithPlayer: false,
+    introEventSeen: true,
+    relationship: 0,
+  };
+}
+
+function normalizeAnarielCompanionState(data: Partial<GameSave>): AnarielCompanionState {
+  const fallbackState = getMigratedAnarielCompanionState();
+  const sourceState = data.companions?.anariel;
+  const status = sourceState?.status;
+  const normalizedStatus = status === "rescued" || status === "ignored" || status === "unknown"
+    ? status
+    : fallbackState.status;
+  const relationship = Number.isFinite(sourceState?.relationship)
+    ? Number(sourceState?.relationship)
+    : fallbackState.relationship;
+
+  return {
+    met: Boolean(sourceState?.met ?? fallbackState.met),
+    status: normalizedStatus,
+    isTravellingWithPlayer: Boolean(sourceState?.isTravellingWithPlayer ?? fallbackState.isTravellingWithPlayer),
+    introEventSeen: Boolean(sourceState?.introEventSeen ?? fallbackState.introEventSeen),
+    relationship,
+  };
+}
+
+function normalizeCompanions(data: Partial<GameSave>): CompanionsState {
+  return {
+    anariel: normalizeAnarielCompanionState(data),
+  };
 }
 
 function normalizeEquipmentSlot(slot: string): EquipmentSlot | null {
@@ -175,6 +234,7 @@ function normalizeSave(data: GameSave) {
     ...data,
     currentDay: Number.isFinite(data.currentDay) ? data.currentDay : DEFAULT_DAY,
     currentHour: Number.isFinite(data.currentHour) ? data.currentHour : DEFAULT_HOUR,
+    companions: normalizeCompanions(data),
     inventory: normalizeInventory(data),
     travelEnergy: normalizeTravelEnergy(data),
     player: {
@@ -188,6 +248,7 @@ function normalizeSave(data: GameSave) {
     normalizedSave.travelEnergy?.currentEnergy !== data.travelEnergy?.currentEnergy ||
     normalizedSave.travelEnergy?.maxEnergy !== data.travelEnergy?.maxEnergy ||
     normalizedSave.travelEnergy?.lastRestDay !== data.travelEnergy?.lastRestDay ||
+    JSON.stringify(normalizedSave.companions) !== JSON.stringify(data.companions) ||
     JSON.stringify(normalizedSave.inventory) !== JSON.stringify(data.inventory) ||
     normalizedSave.player.portraitUrl !== data.player.portraitUrl;
 

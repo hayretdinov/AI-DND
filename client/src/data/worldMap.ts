@@ -128,7 +128,7 @@ export const worldMapNodes: MapNode[] = [
     titleKey: "worldMapSouthernCastleTitle",
     descriptionKey: "worldMapSouthernCastleDescription",
     x: 48.1,
-    y: 77.9,
+    y: 92.8,
     icon: "K",
     iconType: "southern_castle",
     type: "location",

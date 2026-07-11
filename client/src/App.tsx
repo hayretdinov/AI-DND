@@ -6,7 +6,7 @@ import { Journal } from "./screens/Journal";
 import { MainMenu } from "./screens/MainMenu";
 import { Settings } from "./screens/Settings";
 import { WorldMap } from "./screens/WorldMap";
-import { hasSave } from "./systems/save/saveSystem";
+import { createInitialAnarielCompanionState, hasSave, loadGame, saveGame } from "./systems/save/saveSystem";
 import { getLanguage, setLanguage } from "./i18n/i18n";
 import type { Language } from "./i18n/languages";
 import type { ScreenName } from "./types/navigation";
@@ -18,6 +18,27 @@ export default function App() {
 
   const backToMenu = () => setScreen("mainMenu");
   const refreshSaveState = () => setSaveVersion((version) => version + 1);
+  const continueGame = () => {
+    const save = loadGame();
+    setScreen(save?.companions?.anariel.introEventSeen === false ? "eventScene" : "worldMap");
+  };
+  const startIntroScene = () => {
+    const save = loadGame();
+
+    if (save) {
+      saveGame({
+        ...save,
+        companions: {
+          ...save.companions,
+          anariel: createInitialAnarielCompanionState(),
+        },
+        currentLocationId: "necropolis_skull_castle",
+      });
+    }
+
+    refreshSaveState();
+    setScreen("eventScene");
+  };
   const changeLanguage = (nextLanguage: Language) => {
     setLanguage(nextLanguage);
     setLanguageState(nextLanguage);
@@ -31,7 +52,7 @@ export default function App() {
           <MainMenu
             hasSave={hasSave()}
             onNewGame={() => setScreen("characterCreation")}
-            onContinue={() => setScreen("worldMap")}
+            onContinue={continueGame}
             onSettings={() => setScreen("settings")}
           />
         ) : null}
@@ -39,10 +60,7 @@ export default function App() {
         {screen === "characterCreation" ? (
           <CharacterCreation
             onBackToMenu={backToMenu}
-            onStartJourney={() => {
-              refreshSaveState();
-              setScreen("worldMap");
-            }}
+            onStartJourney={startIntroScene}
           />
         ) : null}
 
@@ -56,7 +74,15 @@ export default function App() {
           />
         ) : null}
 
-        {screen === "eventScene" ? <EventScene onBackToMenu={backToMenu} /> : null}
+        {screen === "eventScene" ? (
+          <EventScene
+            onBackToMenu={backToMenu}
+            onOpenWorldMap={() => {
+              refreshSaveState();
+              setScreen("worldMap");
+            }}
+          />
+        ) : null}
         {screen === "inventory" ? (
           <Inventory onBackToMenu={backToMenu} onOpenMap={() => setScreen("worldMap")} />
         ) : null}

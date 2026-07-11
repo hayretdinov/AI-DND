@@ -633,3 +633,27 @@ Update date: 2026-07-11
 - Carry weight is recalculated from saved item stacks.
 - The Inventory top Map button now returns the player to the WorldMap screen.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Event scene redesign and Anariel intro scene
+
+Update date: 2026-07-11
+
+- EventScene was redesigned into a fullscreen dark fantasy event layout based on the new reference.
+- Added title, location, sidebar, dialogue, speaker portrait, and right interaction choice panels.
+- The Anariel intro scene now uses the prison background and existing Anariel prisoner asset as a full story scene.
+- Choices mode is implemented for rescue, ask, ignore, and inspect chains.
+- Rescue and ignore choices save Anariel companion state and return the player to WorldMap.
+- Future companion panel architecture is prepared with `interactionMode: "choices" | "companion"`.
+- New character creation now starts at the necropolis intro before opening WorldMap.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Anariel intro second step
+
+Update date: 2026-07-11
+
+- Choosing to free Anariel no longer sends the player directly to WorldMap.
+- The intro now switches to a second step where Anariel is standing, still chained, afraid, and weak.
+- The second step uses `client/public/assets/companions/anariel/anariel_chained_standing_fear.png` without editing or compression.
+- Final choices let the player take Anariel with them or start the journey together.
+- Anariel companion state is saved only after the final second-step choice: `met`, `rescued`, `isTravellingWithPlayer`, `introEventSeen`, and relationship are updated.
+- A TODO remains for replacing the choice panel with a future companion dialogue/advice panel after Anariel becomes an active companion.
