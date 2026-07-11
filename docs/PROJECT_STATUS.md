@@ -681,3 +681,15 @@ Update date: 2026-07-11
 - WorldMap top and bottom PNG panels now stretch almost across the full viewport with `background-size: 100% 100%`.
 - No new image assets were added and existing map, character, Anariel, travel, pan/zoom, and node editor behavior were kept intact.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Inventory companion visual
+
+Update date: 2026-07-11
+
+- Inventory now shows Anariel behind the player character when she is travelling with the player.
+- The display condition uses `companions.anariel.isTravellingWithPlayer`, with `rescued` and `companion` status support for compatibility.
+- If Anariel was ignored or is not travelling with the player, no companion visual or label is rendered.
+- Inventory companion image selection is prepared around `player.currentOutfitStage`.
+- Public Anariel travel assets were copied from the existing source assets without editing.
+- A fallback path uses the rags travel image first, then a dark fantasy silhouette if the image cannot load.
+- Build passes with `npm.cmd run build` from `client/`.

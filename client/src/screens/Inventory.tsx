@@ -65,6 +65,18 @@ const bonusLabels: Record<InventoryBonusKey, TranslationKey> = {
   evasion: "inventoryEvasion",
 };
 
+const ANARIEL_INVENTORY_FALLBACK_IMAGE =
+  "/assets/companions/anariel/anariel_travel_rags.png";
+
+const ANARIEL_INVENTORY_IMAGE_BY_OUTFIT_STAGE: Record<
+  NonNullable<PlayerCharacter["currentOutfitStage"]>,
+  string
+> = {
+  rags: ANARIEL_INVENTORY_FALLBACK_IMAGE,
+  clothes: "/assets/companions/anariel/anariel_travel_clothes.png",
+  armor: "/assets/companions/anariel/anariel_travel_armor.png",
+};
+
 function translate(key: string) {
   return t(key as TranslationKey);
 }
@@ -212,10 +224,27 @@ function getSortedItems(items: InventoryItem[], sortBy: InventorySort) {
   return sortedItems;
 }
 
+function shouldShowAnarielCompanion(save: GameSave | null) {
+  const anariel = save?.companions?.anariel;
+
+  return Boolean(
+    anariel?.isTravellingWithPlayer ||
+      anariel?.status === "companion" ||
+      anariel?.status === "rescued",
+  );
+}
+
+function getAnarielInventoryImage(save: GameSave | null) {
+  const outfitStage = save?.player.currentOutfitStage ?? "rags";
+
+  return ANARIEL_INVENTORY_IMAGE_BY_OUTFIT_STAGE[outfitStage] ?? ANARIEL_INVENTORY_FALLBACK_IMAGE;
+}
+
 export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   const loadedSave = loadGame();
   const [currentSave, setCurrentSave] = useState<GameSave | null>(loadedSave);
   const [inventory, setInventory] = useState<InventoryState>(() => loadedSave?.inventory ?? createDefaultInventoryState());
+  const [isAnarielImageMissing, setIsAnarielImageMissing] = useState(false);
   const player = currentSave?.player;
   const items = inventory.items;
   const equipment = inventory.equipment;
@@ -270,6 +299,8 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   const criticalDamage = 140 + dexterity * 2;
   const evasion = Math.max(8, dexterity + 10);
   const blockChance = Math.max(5, Math.round((strength + constitution) / 2));
+  const showAnariel = shouldShowAnarielCompanion(currentSave);
+  const anarielInventoryImage = getAnarielInventoryImage(currentSave);
 
   const persistInventory = (nextInventory: InventoryState, messageKey?: TranslationKey) => {
     setInventory(nextInventory);
@@ -489,12 +520,52 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
 
         <section className="inventory-center-panel" aria-label={t("inventoryCharacter")}>
           <div className="inventory-character">
-            <div className="inventory-character-figure">
-              {player?.portraitUrl ? (
-                <img src={player.portraitUrl} alt="" draggable={false} />
-              ) : (
-                <span>{player?.name.slice(0, 1).toUpperCase() ?? "A"}</span>
-              )}
+            <div className="inventory-character-stage">
+              {showAnariel ? (
+                <>
+                  {isAnarielImageMissing ? (
+                    <div
+                      className="inventory-companion-figure inventory-companion-figure--anariel inventory-companion-figure--fallback"
+                      aria-hidden="true"
+                    >
+                      <span>A</span>
+                    </div>
+                  ) : (
+                    <img
+                      className="inventory-companion-figure inventory-companion-figure--anariel"
+                      src={anarielInventoryImage}
+                      alt=""
+                      draggable={false}
+                      onError={(event) => {
+                        if (
+                          event.currentTarget.getAttribute("src") !==
+                          ANARIEL_INVENTORY_FALLBACK_IMAGE
+                        ) {
+                          event.currentTarget.src = ANARIEL_INVENTORY_FALLBACK_IMAGE;
+                          return;
+                        }
+
+                        setIsAnarielImageMissing(true);
+                      }}
+                    />
+                  )}
+                  <div className="inventory-companion-label">
+                    <strong className="inventory-companion-name">
+                      {t("inventory.companion.anarielName")}
+                    </strong>
+                    <span className="inventory-companion-status">
+                      {t("inventory.companion.status")}
+                    </span>
+                  </div>
+                </>
+              ) : null}
+              <div className="inventory-character-figure">
+                {player?.portraitUrl ? (
+                  <img src={player.portraitUrl} alt="" draggable={false} />
+                ) : (
+                  <span>{player?.name.slice(0, 1).toUpperCase() ?? "A"}</span>
+                )}
+              </div>
             </div>
             <div className="inventory-equipment-slots">
               {equipmentSlots.map((slot) => {

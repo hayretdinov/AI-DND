@@ -17,6 +17,9 @@
 | Traveling with the Player in Rags | `assets/companions/anariel/anariel_travel_rags.png` | early companion travel state | yes | Early travel appearance before better clothing. |
 | Traveling with the Player in Normal Clothes | `assets/companions/anariel/anariel_travel_clothes.png` | companion clothing progression after player obtains normal clothes | later | Later visual progression state. |
 | Traveling with the Player in Armor | `assets/companions/anariel/anariel_travel_armor.png` | companion armor progression | later | Later armored companion state. |
+| Public Travel Rags | `client/public/assets/companions/anariel/anariel_travel_rags.png` | Inventory companion layer when Anariel travels with the player | yes | Copied from the source asset without editing. |
+| Public Travel Normal Clothes | `client/public/assets/companions/anariel/anariel_travel_clothes.png` | Future Inventory companion clothing progression | later | Copied from the source asset without editing. |
+| Public Travel Armor | `client/public/assets/companions/anariel/anariel_travel_armor.png` | Future Inventory companion armor progression | later | Copied from the source asset without editing. |
 
 ## World Map Visual Assets
 

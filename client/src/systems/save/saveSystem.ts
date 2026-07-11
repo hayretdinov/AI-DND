@@ -20,7 +20,7 @@ export type TravelEnergyState = {
 
 export type AnarielCompanionState = {
   met: boolean;
-  status: "unknown" | "rescued" | "ignored";
+  status: "unknown" | "rescued" | "ignored" | "companion";
   isTravellingWithPlayer: boolean;
   introEventSeen: boolean;
   relationship: number;
@@ -166,7 +166,8 @@ function normalizeAnarielCompanionState(data: Partial<GameSave>): AnarielCompani
   const fallbackState = getMigratedAnarielCompanionState();
   const sourceState = data.companions?.anariel;
   const status = sourceState?.status;
-  const normalizedStatus = status === "rescued" || status === "ignored" || status === "unknown"
+  const normalizedStatus =
+    status === "rescued" || status === "ignored" || status === "unknown" || status === "companion"
     ? status
     : fallbackState.status;
   const relationship = Number.isFinite(sourceState?.relationship)
