@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { createDefaultInventoryState } from "../data/inventoryMockData";
+import { WEAPON_TRAINING_ORDER } from "../data/trainingData";
 import { t, type TranslationKey } from "../i18n/i18n";
 import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
+import type { WeaponType } from "../types/combat";
 import type { EquipmentSlot, InventoryCategory, InventoryItem, InventoryState } from "../types/inventory";
 import type { PlayerCharacter } from "../types/player";
 
@@ -22,6 +24,12 @@ const categoryTabs: Array<{ id: InventoryCategory; labelKey: TranslationKey; ico
   { id: "equipped", labelKey: "inventoryCategoryEquipped", icon: "◆" },
   { id: "backpack", labelKey: "inventoryCategoryBackpack", icon: "◇" },
   { id: "weapon", labelKey: "inventoryCategoryWeapons", icon: "†" },
+  { id: "shield", labelKey: "inventoryCategoryShield", icon: "▣" },
+  { id: "clothing", labelKey: "inventoryCategoryClothing", icon: "⌁" },
+  { id: "medicine", labelKey: "inventoryCategoryMedicine", icon: "+" },
+  { id: "document", labelKey: "inventoryCategoryDocuments", icon: "?" },
+  { id: "tool", labelKey: "inventoryCategoryTools", icon: "!" },
+  { id: "accessory", labelKey: "inventoryCategoryAccessories", icon: "○" },
   { id: "armor", labelKey: "inventoryCategoryArmor", icon: "▣" },
   { id: "consumable", labelKey: "inventoryCategoryConsumables", icon: "◈" },
   { id: "material", labelKey: "inventoryCategoryMaterials", icon: "☘" },
@@ -32,6 +40,7 @@ const categoryTabs: Array<{ id: InventoryCategory; labelKey: TranslationKey; ico
 const equipmentSlots: Array<{ id: EquipmentSlot; labelKey: TranslationKey; className: string }> = [
   { id: "head", labelKey: "inventorySlotHead", className: "inventory-equipment-slot--head" },
   { id: "chest", labelKey: "inventorySlotChest", className: "inventory-equipment-slot--chest" },
+  { id: "cloak", labelKey: "inventorySlotCloak", className: "inventory-equipment-slot--back" },
   { id: "mainHand", labelKey: "inventorySlotMainHand", className: "inventory-equipment-slot--right-hand" },
   { id: "offHand", labelKey: "inventorySlotOffHand", className: "inventory-equipment-slot--left-hand" },
   { id: "back", labelKey: "inventorySlotBack", className: "inventory-equipment-slot--back" },
@@ -54,15 +63,28 @@ const rarityRank = {
   common: 1,
   uncommon: 2,
   rare: 3,
-  epic: 4,
-  legendary: 5,
-};
+  unique: 4,
+  epic: 5,
+  legendary: 6,
+} satisfies Record<InventoryItem["rarity"], number>;
 
 const bonusLabels: Record<InventoryBonusKey, TranslationKey> = {
   attack: "inventoryAttack",
   blockChance: "inventoryBlockChance",
   defense: "inventoryDefense",
   evasion: "inventoryEvasion",
+};
+
+const weaponTypeLabelKeys: Record<WeaponType, TranslationKey> = {
+  oneHandedSword: "weapon.oneHandedSword",
+  twoHandedSword: "weapon.twoHandedSword",
+  dagger: "weapon.dagger",
+  axe: "weapon.axe",
+  mace: "weapon.mace",
+  club: "weapon.club",
+  bow: "weapon.bow",
+  staff: "weapon.staff",
+  unarmed: "weapon.unarmed",
 };
 
 const ANARIEL_INVENTORY_FALLBACK_IMAGE =
@@ -240,6 +262,10 @@ function getAnarielInventoryImage(save: GameSave | null) {
   return ANARIEL_INVENTORY_IMAGE_BY_OUTFIT_STAGE[outfitStage] ?? ANARIEL_INVENTORY_FALLBACK_IMAGE;
 }
 
+function canUseInventoryItem(item: InventoryItem | null) {
+  return Boolean(item?.canUse || item?.effectType);
+}
+
 export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   const loadedSave = loadGame();
   const [currentSave, setCurrentSave] = useState<GameSave | null>(loadedSave);
@@ -301,6 +327,7 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   const blockChance = Math.max(5, Math.round((strength + constitution) / 2));
   const showAnariel = shouldShowAnarielCompanion(currentSave);
   const anarielInventoryImage = getAnarielInventoryImage(currentSave);
+  const training = player?.training;
 
   const persistInventory = (nextInventory: InventoryState, messageKey?: TranslationKey) => {
     setInventory(nextInventory);
@@ -310,6 +337,16 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
       saveGame(nextSave);
       setCurrentSave(nextSave);
     }
+
+    if (messageKey) {
+      setInventoryMessage(t(messageKey));
+    }
+  };
+
+  const persistSaveState = (nextSave: GameSave, messageKey?: TranslationKey) => {
+    saveGame(nextSave);
+    setCurrentSave(nextSave);
+    setInventory(nextSave.inventory ?? createDefaultInventoryState());
 
     if (messageKey) {
       setInventoryMessage(t(messageKey));
@@ -338,8 +375,78 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   };
 
   const handleUseItem = () => {
-    if (!selectedItem || selectedItem.category !== "consumable" || selectedItem.isQuestItem) {
+    if (!selectedItem || !canUseInventoryItem(selectedItem)) {
       return;
+    }
+
+    if (selectedItem.effectType === "readText" && selectedItem.templateId === "torn_note") {
+      setInventoryMessage(t("inventoryUseTornNote"));
+      return;
+    }
+
+    if (selectedItem.effectType === "readText" && selectedItem.templateId === "sealed_letter") {
+      setInventoryMessage(t("inventory.sealedLetterText"));
+      return;
+    }
+
+    if (selectedItem.effectType === "lockpick") {
+      setInventoryMessage(t("inventory.noLockHere"));
+      return;
+    }
+
+    if (selectedItem.effectType === "lightSource") {
+      updateItemQuantity(selectedItem.id, selectedItem.quantity - 1, "inventory.torchLit");
+      return;
+    }
+
+    if (selectedItem.effectType === "restoreMana") {
+      setInventoryMessage(t("inventory.noMagicKnowledge"));
+      return;
+    }
+
+    if (selectedItem.effectType === "convertToGold") {
+      const nextItems = items
+        .map((item) => (item.id === selectedItem.id ? { ...item, quantity: item.quantity - 1 } : item))
+        .filter((item) => item.quantity > 0);
+      const nextInventory = {
+        ...inventory,
+        gold: inventory.gold + (selectedItem.effectValue ?? 5),
+        items: nextItems,
+      };
+
+      persistInventory(nextInventory, "inventoryUseCoinPouch");
+      return;
+    }
+
+    if (selectedItem.effectType === "restoreHealth" || selectedItem.effectType === "restoreEnergy" || selectedItem.effectType === "stopBleeding") {
+      const healAmount =
+        selectedItem.effectType === "restoreHealth"
+          ? selectedItem.effectValue ?? 1
+          : selectedItem.effectType === "stopBleeding"
+            ? 1
+            : 1;
+      const nextItems = items
+        .map((item) => (item.id === selectedItem.id ? { ...item, quantity: item.quantity - 1 } : item))
+        .filter((item) => item.quantity > 0);
+      const playerCombat = currentSave?.player.combat;
+
+      if (currentSave && playerCombat) {
+        persistSaveState({
+          ...currentSave,
+          inventory: {
+            ...inventory,
+            items: nextItems,
+          },
+          player: {
+            ...currentSave.player,
+            combat: {
+              ...playerCombat,
+              currentHealth: Math.min(playerCombat.maxHealth, playerCombat.currentHealth + healAmount),
+            },
+          },
+        }, selectedItem.effectType === "stopBleeding" ? "inventoryUseBandage" : selectedItem.templateId === "stale_bread" ? "inventoryUseStaleBread" : "inventoryUseHealingHerb");
+        return;
+      }
     }
 
     updateItemQuantity(selectedItem.id, selectedItem.quantity - 1, "inventoryItemUsed");
@@ -359,6 +466,20 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
     }
 
     nextEquipment[selectedItem.slot] = selectedItem.id;
+
+    if (selectedItem.outfitStageOnEquip && currentSave) {
+      persistSaveState({
+        ...currentSave,
+        inventory: { ...inventory, equipment: nextEquipment },
+        player: {
+          ...currentSave.player,
+          currentOutfitStage: selectedItem.outfitStageOnEquip,
+          unlockedOutfitStages: Array.from(new Set([...(currentSave.player.unlockedOutfitStages ?? ["rags"]), selectedItem.outfitStageOnEquip])),
+        },
+      }, "inventoryItemEquipped");
+      return;
+    }
+
     persistInventory({ ...inventory, equipment: nextEquipment }, "inventoryItemEquipped");
   };
 
@@ -516,6 +637,22 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
             <p>{t(getLoadStateKey(currentWeight, maxWeight))}</p>
             {isOverloaded ? <p className="inventory-load-warning">{t("inventoryOverloadedWarning")}</p> : null}
           </div>
+
+          <div className="training-skills-panel">
+            <h3>{t("training.weaponSkills")}</h3>
+            {WEAPON_TRAINING_ORDER.slice(0, 5).map((weaponType) => {
+              const isTrained = Boolean(training?.weapons[weaponType]);
+
+              return (
+                <div className="training-skill-row" key={weaponType}>
+                  <span>{t(weaponTypeLabelKeys[weaponType])}</span>
+                  <strong className="training-skill-status">
+                    {t(isTrained ? "training.trained" : "training.untrained")}
+                  </strong>
+                </div>
+              );
+            })}
+          </div>
         </aside>
 
         <section className="inventory-center-panel" aria-label={t("inventoryCharacter")}>
@@ -630,6 +767,9 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
           </div>
 
           <div className="inventory-grid" aria-label={t("inventoryGrid")}>
+            {sortedItems.length === 0 ? (
+              <p className="inventory-empty-message">{t("inventory.empty")}</p>
+            ) : null}
             {sortedItems.map((item) => {
               const isSelected = selectedItemId === item.id;
               const isEquipped = equippedItemIds.has(item.id);
@@ -710,6 +850,16 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
                       </dd>
                     </div>
                   ) : null}
+                  {selectedItem.weaponType ? (
+                    <div className="inventory-weapon-stats">
+                      <dt>{t("inventoryWeaponStats")}</dt>
+                      <dd>
+                        {t(weaponTypeLabelKeys[selectedItem.weaponType])} · {selectedItem.damageDice ?? "1d4"} ·{" "}
+                        {t(`damage.${selectedItem.damageType ?? "bludgeoning"}` as TranslationKey)} ·{" "}
+                        {t(`attribute.${selectedItem.attackAttribute ?? "strength"}` as TranslationKey)}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
                 {selectedItem.equippable ? (
                   <div className="inventory-comparison inventory-details">
@@ -777,7 +927,7 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
                 <i style={{ width: `${weightRatio}%` }} />
               </div>
             </div>
-            <button className="inventory-action-button" type="button" onClick={handleUseItem} disabled={selectedItem?.category !== "consumable" || selectedItem?.isQuestItem}>
+            <button className="inventory-action-button" type="button" onClick={handleUseItem} disabled={!canUseInventoryItem(selectedItem)}>
               {t("inventoryUse")}
             </button>
             <button className="inventory-action-button" type="button" onClick={handleEquipItem} disabled={!selectedItem?.equippable}>

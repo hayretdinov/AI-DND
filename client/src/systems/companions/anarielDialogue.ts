@@ -1,6 +1,6 @@
-import { ANARIEL_SYSTEM_PROMPT } from "../../data/companions/anarielPrompt";
+import { buildAnarielPrompt, type AnarielPromptPhase } from "../../data/companions/anarielPrompt";
 import { getWorldMapNodeById, isWorldMapNodeId } from "../../data/worldMap";
-import type { TranslationKey } from "../../i18n/i18n";
+import { getLanguage, type TranslationKey } from "../../i18n/i18n";
 import { requestLocalChatCompletion } from "../ai/localAiClient";
 import type { AnarielCompanionState, GameSave } from "../save/saveSystem";
 import type { CompanionDialogueMessage } from "../../types/companion";
@@ -12,6 +12,12 @@ export const ANARIEL_FALLBACK_REPLY_KEYS = [
   "companion.chat.fallback.3",
   "companion.chat.fallback.4",
   "companion.chat.fallback.5",
+] as const satisfies readonly TranslationKey[];
+
+export const ANARIEL_INTRO_FALLBACK_REPLY_KEYS = [
+  "event.anarielIntro.aiInitialFallback1",
+  "event.anarielIntro.aiInitialFallback2",
+  "event.anarielIntro.aiInitialFallback3",
 ] as const satisfies readonly TranslationKey[];
 
 type ToneDelta = {
@@ -94,7 +100,7 @@ export function analyzePlayerTone(text: string): ToneDelta {
   if (containsAny(normalizedText, cruelWords)) {
     delta.trust -= 3;
     delta.relationship -= 4;
-    delta.fear += 3;
+    delta.fear += 4;
     delta.respect -= 1;
   }
 
@@ -121,6 +127,36 @@ export function applyAnarielToneDelta(
 
 export function getFallbackReplyKey(historyLength: number): TranslationKey {
   return ANARIEL_FALLBACK_REPLY_KEYS[historyLength % ANARIEL_FALLBACK_REPLY_KEYS.length];
+}
+
+export function getIntroFallbackReplyKey(historyLength: number): TranslationKey {
+  return ANARIEL_INTRO_FALLBACK_REPLY_KEYS[historyLength % ANARIEL_INTRO_FALLBACK_REPLY_KEYS.length];
+}
+
+export function appendAnarielMessage(
+  state: AnarielCompanionState,
+  anarielText: string,
+): AnarielCompanionState {
+  const createdAt = new Date().toISOString();
+  const anarielMessage: CompanionDialogueMessage = {
+    id: createDialogueId(),
+    speaker: "anariel",
+    text: anarielText,
+    createdAt,
+  };
+  const nextMessages: CompanionDialogueMessage[] = [
+    ...state.dialogueHistory,
+    anarielMessage,
+  ].slice(-20);
+
+  return {
+    ...state,
+    dialogueHistory: nextMessages,
+    lastDialogueSummary: nextMessages
+      .slice(-4)
+      .map((message) => `${message.speaker}: ${message.text}`)
+      .join(" / "),
+  };
 }
 
 export function appendDialogueMessages(
@@ -157,7 +193,11 @@ export function appendDialogueMessages(
   };
 }
 
-export function buildAnarielAiMessages(save: GameSave, playerText: string): AiChatMessage[] {
+export function buildAnarielAiMessages(
+  save: GameSave,
+  playerText: string,
+  phase: AnarielPromptPhase = "companion",
+): AiChatMessage[] {
   const anariel = save.companions?.anariel;
   const currentLocation = isWorldMapNodeId(save.currentLocationId)
     ? getWorldMapNodeById(save.currentLocationId)
@@ -177,7 +217,7 @@ export function buildAnarielAiMessages(save: GameSave, playerText: string): AiCh
   ].join("\n");
 
   return [
-    { role: "system", content: ANARIEL_SYSTEM_PROMPT },
+    { role: "system", content: buildAnarielPrompt({ phase }) },
     { role: "system", content: `Current game state:\n${stateSummary}` },
     ...recentHistory.map((message): AiChatMessage => ({
       role: message.speaker === "player" ? "user" : "assistant",
@@ -187,6 +227,25 @@ export function buildAnarielAiMessages(save: GameSave, playerText: string): AiCh
   ];
 }
 
-export async function getAnarielAiReply(save: GameSave, playerText: string) {
-  return requestLocalChatCompletion(buildAnarielAiMessages(save, playerText));
+export async function getAnarielAiReply(
+  save: GameSave,
+  playerText: string,
+  phase: AnarielPromptPhase = "companion",
+) {
+  return requestLocalChatCompletion(buildAnarielAiMessages(save, playerText, phase));
+}
+
+export async function getAnarielIntroInitialReply(save: GameSave) {
+  const language = getLanguage();
+  const messages: AiChatMessage[] = [
+    { role: "system", content: buildAnarielPrompt({ phase: "intro_prisoner", language }) },
+    {
+      role: "user",
+      content: language === "ru"
+        ? "Ты видишь игрока впервые, находясь в цепях рядом с некрополем. Коротко и испуганно попроси о помощи. Ответь на русском."
+        : "You see the player for the first time while chained near the necropolis. Ask for help briefly and fearfully. Reply in English.",
+    },
+  ];
+
+  return requestLocalChatCompletion(messages);
 }

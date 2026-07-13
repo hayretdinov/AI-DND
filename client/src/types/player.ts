@@ -1,3 +1,5 @@
+import type { CombatStats, PlayerTraining } from "./combat";
+
 export type PlayerOrigin = "prisoner" | "deserter" | "hunter" | "scholar" | "outcast";
 export type PlayerRace = "human" | "elf" | "dwarf" | "orc";
 export type PlayerGender = "male" | "female";
@@ -33,5 +35,7 @@ export type PlayerCharacter = {
   portraitUrl: string;
   attributes: Attributes;
   derivedStats: DerivedStats;
+  combat?: CombatStats;
+  training?: PlayerTraining;
   createdAt: string;
 };

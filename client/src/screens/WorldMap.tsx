@@ -25,6 +25,7 @@ import {
   getFallbackReplyKey,
 } from "../systems/companions/anarielDialogue";
 import { getLocationEventById } from "../data/locationEvents";
+import { getNpcById } from "../data/npcs";
 import {
   getConnectedNodeIds,
   getRouteBetween,
@@ -43,11 +44,14 @@ import {
   type WorldMapNodeId,
 } from "../data/worldMap";
 import { rollRandomTravelEvent } from "../systems/events/randomTravelEventSystem";
-import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
+import { createNpcInstance } from "../systems/npc/npcDialogueSystem";
+import { getPlayerGold, loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
 
 type WorldMapProps = {
   saveVersion: number;
   onOpenEvent: () => void;
+  onOpenCityMap: () => void;
+  onOpenCamp: () => void;
   onOpenInventory: () => void;
   onOpenJournal: () => void;
   onBackToMenu: () => void;
@@ -171,6 +175,17 @@ function wait(ms: number) {
   });
 }
 
+function getInterpolatedMapPosition(fromId: WorldMapNodeId, toId: WorldMapNodeId, progress: number) {
+  const fromNode = getWorldMapNodeById(fromId);
+  const toNode = getWorldMapNodeById(toId);
+  const safeProgress = clamp(progress, 0, 1);
+
+  return {
+    x: fromNode.x + (toNode.x - fromNode.x) * safeProgress,
+    y: fromNode.y + (toNode.y - fromNode.y) * safeProgress,
+  };
+}
+
 function getSegmentEnergyCost(fromId: WorldMapNodeId, toId: WorldMapNodeId) {
   return getRouteBetween(fromId, toId)?.energyCost ?? DEFAULT_SEGMENT_ENERGY_COST;
 }
@@ -245,11 +260,14 @@ function validateMapEditorData() {
 export function WorldMap({
   saveVersion,
   onOpenEvent,
+  onOpenCityMap,
+  onOpenCamp,
   onOpenInventory,
   onOpenJournal,
   onBackToMenu,
 }: WorldMapProps) {
   void saveVersion;
+  void onOpenCityMap;
 
   const save = loadGame();
   const [chatSave, setChatSave] = useState<GameSave | null>(save);
@@ -279,6 +297,7 @@ export function WorldMap({
   const [currentTravelStepIndex, setCurrentTravelStepIndex] = useState(0);
   const [activeTravelSegment, setActiveTravelSegment] = useState<ActiveTravelSegment | null>(null);
   const [activeTravelSegmentDelayMs, setActiveTravelSegmentDelayMs] = useState(0);
+  const [pendingRandomTravelEventId, setPendingRandomTravelEventId] = useState("");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -311,6 +330,7 @@ export function WorldMap({
   const anarielAdviceKey = getAnarielWorldAdviceKey(anarielAdviceIndex);
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
+  const playerGold = getPlayerGold(save);
   const editorSelectedNode = getWorldMapNodeById(editorSelectedNodeId);
   const editorSelectedRoutes = useMemo(
     () => worldMapRoutes.filter((route) => route.from === editorSelectedNodeId || route.to === editorSelectedNodeId),
@@ -355,10 +375,12 @@ export function WorldMap({
     hasPathToSelectedNode && selectedNodeId !== currentLocationId && !hasEnoughEnergyForFirstSegment;
   const shouldShowPartialEnergyWarning =
     hasPathToSelectedNode && !hasEnoughTravelEnergy && hasEnoughEnergyForFirstSegment;
+  const isTravelling = Boolean(travelingTo);
+  const isEnterDisabled = isTravelling || Boolean(pendingRandomTravelEventId);
   const canTravel = Boolean(
     save &&
       !isNodeEditorOpen &&
-      !travelingTo &&
+      !isTravelling &&
       selectedNodeId !== currentLocationId &&
       selectedNode.unlocked &&
       selectedPath &&
@@ -617,26 +639,32 @@ export function WorldMap({
       return;
     }
 
-    const randomEventContext = rollRandomTravelEvent(selectedNodeId);
-
-    if (randomEventContext) {
-      saveGame({
-        ...save,
-        activeEvent: randomEventContext,
-        travelEvents: {
-          seenEventIds: Array.from(
-            new Set([...(save.travelEvents?.seenEventIds ?? []), randomEventContext.eventId]),
-          ),
-        },
-      });
-      onOpenEvent();
-      return;
-    }
-
+    const randomTravelEvent = rollRandomTravelEvent(selectedPath[0], selectedNodeId);
+    const randomTravelEventSegmentCount = selectedPath.length - 1;
+    const randomTravelEventStep =
+      randomTravelEvent === null
+        ? -1
+        : Math.min(
+            randomTravelEventSegmentCount - 1,
+            Math.floor(randomTravelEvent.triggerProgress * randomTravelEventSegmentCount),
+          );
+    const randomTravelEventSegmentProgress =
+      randomTravelEvent === null
+        ? 0
+        : clamp(randomTravelEvent.triggerProgress * randomTravelEventSegmentCount - randomTravelEventStep, 0.15, 0.85);
     setTravelingTo(selectedNodeId);
     setTravelPath(selectedPath);
     setCurrentTravelStepIndex(0);
     setArrivalMessage(t("worldMapTraveling"));
+    setPendingRandomTravelEventId(randomTravelEvent?.eventId ?? "");
+
+    if (randomTravelEvent) {
+      console.info("[TravelEvent] pending", {
+        eventId: randomTravelEvent.eventId,
+        targetId: randomTravelEvent.targetId,
+        triggerProgress: randomTravelEvent.triggerProgress,
+      });
+    }
 
     let stepDay = currentDay;
     let stepHour = currentHour;
@@ -659,6 +687,7 @@ export function WorldMap({
 
       const destination = getWorldMapNodeById(toId);
       const visualDelayMs = getTravelVisualDelayMs(segmentVisualTimeHours);
+      const shouldTriggerRandomEvent = Boolean(randomTravelEvent) && index === randomTravelEventStep;
       setActiveTravelSegment({ fromId, toId });
       setActiveTravelSegmentDelayMs(visualDelayMs);
       setCurrentTravelStepIndex(index + 1);
@@ -666,6 +695,72 @@ export function WorldMap({
       window.requestAnimationFrame(() => {
         setMarkerPosition({ x: destination.x, y: destination.y });
       });
+
+      if (randomTravelEvent && shouldTriggerRandomEvent) {
+        const interruptDelayMs = Math.floor(visualDelayMs * randomTravelEventSegmentProgress);
+
+        await wait(interruptDelayMs);
+
+        const interruptedPosition = getInterpolatedMapPosition(fromId, toId, randomTravelEventSegmentProgress);
+        const latestSave = loadGame() ?? save;
+
+        setActiveTravelSegmentDelayMs(0);
+        setMarkerPosition(interruptedPosition);
+        setTravelingTo(null);
+        setTravelPath([]);
+        setCurrentTravelStepIndex(0);
+        setActiveTravelSegment(null);
+
+        console.info("[TravelEvent] triggered", {
+          eventId: randomTravelEvent.eventId,
+          fromId,
+          toId,
+          targetId: randomTravelEvent.targetId,
+          progress: randomTravelEvent.triggerProgress,
+          segmentProgress: randomTravelEventSegmentProgress,
+        });
+
+        const npcTemplate = randomTravelEvent.npcTemplateId ? getNpcById(randomTravelEvent.npcTemplateId) : null;
+        const npcInstance = npcTemplate
+          ? createNpcInstance(npcTemplate, {
+              eventId: randomTravelEvent.eventId,
+              routeFromId: fromId,
+              routeToId: toId,
+            })
+          : null;
+
+        saveGame({
+          ...latestSave,
+          activeEvent: {
+            eventId: randomTravelEvent.eventId,
+            npcId: npcTemplate?.id,
+            npcTemplateId: npcTemplate?.id,
+            npcInstanceId: npcInstance?.instanceId,
+            returnTo: "worldMap",
+            pendingTravelTargetId: randomTravelEvent.targetId,
+            resumeTravelAfterEvent: true,
+          },
+          npcs: npcInstance
+            ? {
+                ...(latestSave.npcs ?? { instances: {} }),
+                templatesKnown: Array.from(
+                  new Set([...(latestSave.npcs?.templatesKnown ?? []), npcInstance.templateId]),
+                ),
+                instances: {
+                  ...(latestSave.npcs?.instances ?? {}),
+                  [npcInstance.instanceId]: npcInstance,
+                },
+              }
+            : latestSave.npcs,
+          travelEvents: {
+            seenEventIds: Array.from(new Set([...(latestSave.travelEvents?.seenEventIds ?? []), randomTravelEvent.eventId])),
+          },
+        });
+
+        setPendingRandomTravelEventId("");
+        onOpenEvent();
+        return;
+      }
 
       await wait(visualDelayMs);
 
@@ -712,6 +807,7 @@ export function WorldMap({
     setCurrentTravelStepIndex(0);
     setActiveTravelSegment(null);
     setActiveTravelSegmentDelayMs(0);
+    setPendingRandomTravelEventId("");
 
     if (didReachTarget) {
       setArrivalMessage(
@@ -723,17 +819,28 @@ export function WorldMap({
   };
 
   const handleEnterLocation = () => {
-    if (!save || !currentNode.enterEventId) {
+    if (!save || !currentNode.enterEventId || isEnterDisabled) {
+      return;
+    }
+
+    if (currentNode.enterEventId === "anariel_intro") {
+      console.warn("[AnarielIntro] blocked duplicate intro");
       return;
     }
 
     const locationEvent = getLocationEventById(currentNode.enterEventId);
+
+    if (locationEvent?.type === "necropolis") {
+      console.info("[Necropolis] normal enter event opened");
+    }
 
     saveGame({
       ...save,
       activeEvent: {
         eventId: currentNode.enterEventId,
         npcId: locationEvent?.npcId,
+        npcTemplateId: locationEvent?.npcId,
+        npcInstanceId: locationEvent?.npcId,
         returnTo: "worldMap",
       },
     });
@@ -758,6 +865,19 @@ export function WorldMap({
                 <span>{t("worldMapTravelEnergy")}</span>
                 <strong>
                   {travelEnergy}/{travelEnergyMax}
+                </strong>
+              </div>
+              <div className="world-map-coins">
+                <span>{t("worldMap.coins")}</span>
+                <strong>
+                  <img
+                    src="/assets/ui/currency/gold_coin.png"
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.hidden = true;
+                    }}
+                  />
+                  {playerGold}
                 </strong>
               </div>
             </div>
@@ -917,7 +1037,7 @@ export function WorldMap({
                     onClick={(event) => handleNodeClick(event, node.id)}
                     onKeyDown={(event) => handleNodeKeyDown(event, node.id)}
                     aria-label={`${title}: ${getStatusLabel(status)}`}
-                    aria-disabled={Boolean(travelingTo)}
+                    aria-disabled={isTravelling}
                   >
                     <span className={markerClassName}>
                       {node.iconType ? (
@@ -1213,8 +1333,17 @@ export function WorldMap({
                 </FantasyButton>
               )}
               {currentNode.enterEventId ? (
-                <FantasyButton onClick={handleEnterLocation}>{t("worldMapEnter")}</FantasyButton>
+                <FantasyButton
+                  onClick={handleEnterLocation}
+                  disabled={isEnterDisabled}
+                  className={isEnterDisabled ? "world-map-enter-button--disabled" : ""}
+                >
+                  {isEnterDisabled ? t("worldMap.enterDisabledTravelling") : t("worldMapEnter")}
+                </FantasyButton>
               ) : null}
+              <FantasyButton onClick={onOpenCamp} disabled={isTravelling} className={isTravelling ? "world-map-enter-button--disabled" : ""}>
+                {t("worldMap.camp")}
+              </FantasyButton>
             </div>
           </div>
 

@@ -4,8 +4,22 @@ import type { WorldMapNodeId } from "../data/worldMap";
 export type ActiveEventContext = {
   eventId: string;
   npcId?: string;
-  returnTo: "worldMap";
+  npcTemplateId?: string;
+  npcInstanceId?: string;
+  returnTo: "worldMap" | "cityMap";
+  cityId?: string;
+  cityLocationId?: string;
   pendingTravelTargetId?: WorldMapNodeId;
+  resumeTravelAfterEvent?: boolean;
+};
+
+export type PendingRandomTravelEvent = {
+  eventId: string;
+  npcTemplateId?: string;
+  npcInstanceId?: string;
+  fromId: WorldMapNodeId;
+  targetId: WorldMapNodeId;
+  triggerProgress: number;
 };
 
 export type LocationEventDefinition = {
@@ -15,9 +29,9 @@ export type LocationEventDefinition = {
   locationSubtitleKey: TranslationKey;
   descriptionKey: TranslationKey;
   backgroundImage: string;
-  npcId: string;
+  npcId?: string;
   locationId: WorldMapNodeId;
-  type: "gate";
+  type: "gate" | "necropolis" | "merchant" | "npc";
 };
 
 export type TravelEventDefinition = {

@@ -2,6 +2,68 @@
 
 Дата обновления: 2026-07-03
 
+## Western Great City Map and Gate Flow
+
+- Added the supplied Western Great City map asset at `client/public/assets/maps/western_great_city_map.png`.
+- Added the supplied Central Settlement map asset at `client/public/assets/maps/central_settlement_map.png`.
+- Added `CityMapScene` with data-driven city locations, player position, unavailable places, NPC markers, and city navigation.
+- WorldMap city entry now opens the gate guard first for the Western Great City, central settlement, and southern city instead of jumping directly to merchants.
+- Gate entry is resolved by local game logic through typed intent; the guard dialogue only reports the result, and the `Enter` button appears after `cityAccess[cityId].status === "allowed"`.
+- Added safe save migration for `cityAccess`, `cityState`, and `navigationReturnContext`.
+- Added city placements for the royal court NPCs, blacksmith, and stable `city_merchant_main` merchant alias.
+- Added Central Settlement city map data for the elder house, common house, town hall, blacksmith, altar, market square, tavern, warehouse, artisan houses, resident houses, and north/south gates.
+- Added the central settlement merchant placement on the market square using the existing persistent merchant state.
+- City map NPC selection opens the shared `EventScene`; merchant selection reuses the existing merchant trade layout and returns to the city map.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-13.
+
+## Text-driven Game Master and Engine MVP
+
+- Добавлен локальный `GameMasterSystem`: он получает готовый `GameActionResult` от игровых систем и превращает его только в атмосферное описание, не бросая кубики, не считая урон и не меняя save напрямую.
+- Добавлен `PlayerIntentSystem`: player input в EventScene проходит через распознавание typed intent для RU/EN действий.
+- Action buttons removed from EventScene default flow: intro Анариэль и random NPC/monster сцены используют нижний свободный текстовый ввод, а правая панель показывает мысли, здоровье и подсказку.
+- Anariel intro free/leave works through typed intent: `free_companion` и `leave_companion` обновляют состояние Анариэль и после narration возвращают игрока на WorldMap.
+- Combat starts through typed attack intent: игрок пишет атаку в диалоге, после чего `CombatSystem` выполняет проверку оружия, бросок, hit/miss, damage и enemy counterattack.
+- Game Engine calculates dice, hit/miss, damage and consequences; AI/Game Master only narrates already resolved outcomes.
+- Starting inventory is empty: `createDefaultInventoryState()` теперь возвращает пустой список items и пустое equipment.
+- Strict itemRegistry MVP path added: NPC rewards проходят через `itemRegistry` и `allowedItemRewards`; неизвестные или запрещенные AI markers игнорируются.
+- AI cannot give items outside `allowedItemRewards`: guard, bandit, merchant, civilian, monster and Anariel intro have explicit reward allowlists.
+- NPC/monster visuals enlarged through `event-npc-figure--large`.
+- Dialogue panel made smaller and more transparent with `scene-dialogue-panel--compact` and `scene-dialogue-panel--transparent`.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-13.
+
+## Strict Item Registry MVP
+
+- Starting inventory is empty: no sword, bread, pouch, key, potion, clothes, or test items are granted at New Game.
+- Added 20 strict item templates in `client/src/data/itemRegistry.ts`.
+- AI item rewards are validated against `itemRegistry` and context `allowedItemRewards`.
+- `[[GIVE_ITEM:itemId:quantity]]` and `[[REWARD_GOLD:amount]]` markers are parsed, clamped, removed from UI text, and never saved raw in dialogue history.
+- Items can be used/equipped/read/converted to gold through Inventory UI.
+- `simple_clothes` equips to body/chest and changes `currentOutfitStage` to `clothes`.
+- Weapons equip to primary weapon/main hand; shield equips to shield/off-hand compatibility slot; old amulet equips to amulet.
+- Dead NPCs, monsters, and Anariel intro have empty item reward access.
+- The item registry is documented in `docs/Systems/ITEM_REGISTRY.md`.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-13.
+
+## Merchant Trading MVP
+
+- Added three merchant NPCs: central settlement, southern city, and western city.
+- Merchant scenes reuse `EventScene`: player inventory on the left, merchant stock on the right, deal area in the center, and the standard bottom dialogue panel.
+- Dragging an item into the deal area creates an offer only. The trade is completed only after the merchant accepts and the player presses Confirm.
+- `MerchantSystem` owns prices, active deal state, merchant gold, inventory movement, trade history, relationship, haggling, quests, and save persistence.
+- Merchant AI can discuss the calculated offer in character, but cannot create items, change the final engine price, or complete a trade by text.
+- Merchant stock is limited to existing `itemRegistry` ids.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-13.
+
+## Royal Court and High-Rank NPC Registry
+
+- Added 10 persistent royal-court/high-rank NPCs and one Western Great City blacksmith.
+- Each new NPC uses a stable `templateId === instanceId` and separate save memory under `save.npcs.instances`.
+- Added profile data for traits, goals, fears, knowledge restrictions, relationships, and quest seeds.
+- Added EventScene location events using the shared EventScene instead of separate scene copies.
+- Added dev-only `window.__AI_DND_DEBUG__.openNpc(npcId)` for testing these NPCs.
+- Copied the 10 supplied NPC portraits into `client/public/assets/npcs/royal_court/`.
+- Prepared `/assets/npcs/royal_court/blacksmith.png` as the blacksmith path; no blacksmith image was supplied in this task.
+
 ## 1. Текущая структура проекта
 
 Фактически в рабочей папке сейчас есть:
@@ -732,4 +794,91 @@ Update date: 2026-07-12
 - NPC dialogue state is stored in save data under `npcs` and safely migrates old saves.
 - `travelEvents.seenEventIds` and `activeEvent` are safely normalized in save data.
 - Anariel advice can appear in random travel events when she is travelling with the player.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Travel interruption events and gold rewards
+
+Update date: 2026-07-12
+
+- Random WorldMap travel events now roll at travel start and trigger during movement instead of before animation.
+- When a travel event triggers, movement stops, EventScene opens automatically, and Continue journey returns the hero to the pending target in the current MVP flow.
+- The Enter location action is disabled while the hero is travelling, so enter events and road events stay separate.
+- Player coins use `save.inventory.gold` as the single source of truth and are shown on the WorldMap top panel.
+- Gate scripted help can award gold, and eligible NPC AI replies can issue a hidden `[[REWARD_GOLD:n]]` command that is stripped before display.
+
+## Camp rest scene MVP
+
+Update date: 2026-07-12
+
+- Added a working Camp button on WorldMap that opens a dedicated CampScene.
+- CampScene uses the night camp background under `client/public/assets/locations/player_camp.png`.
+- Rest until dawn restores travel energy to max and safely saves the updated state.
+- Rest advances world time by 8 hours with day rollover.
+- If Anariel is travelling with the player, she appears in camp and can be talked to through the existing Anariel AI dialogue flow.
+- If Anariel is not travelling with the player, the camp still works in solo rest mode.
+- Returning to WorldMap refreshes the save-backed UI state.
+
+## NPC instance memory fix
+
+Update date: 2026-07-12
+
+- NPC save data now separates reusable templates from per-encounter instances under `npcs.instances`.
+- Legacy flat `npcs` save data migrates safely into instance records while preserving existing keys.
+- Random travel encounters create a fresh NPC instance for each bandit/beast encounter, so new random NPCs start with empty memory.
+- Permanent location NPCs keep stable instance ids, so guard memory remains persistent.
+- EventScene uses `npcInstanceId` for dialogue history and runtime status while keeping template data for name, portrait, prompt, and fallback text.
+- Bandit encounters now include a fight choice that marks the active NPC instance as dead and disables further chat.
+- Dead or gone NPCs show localized unavailable-chat messages.
+
+## Inline scene dialogue panel
+
+Update date: 2026-07-12
+
+- Removed the separate modal for CampScene companion dialogue.
+- Camp dialogue now lives in the bottom scene panel through a reusable `SceneDialoguePanel` component.
+- The active speaker is shown directly in the scene and inside the dialogue header with portrait, name, and role.
+- Enter sends a message, while Shift+Enter keeps multiline input behavior.
+- New player/NPC/Anariel messages automatically scroll the chat history to the bottom.
+- Existing Anariel dialogue history from `save.companions.anariel.dialogueHistory` is reused, so camp conversations persist after returning to WorldMap.
+- EventScene NPC and companion dialogue now use the same inline panel instead of popup chat windows, preparing the shared architecture for future scene NPC conversations.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Inventory-based combat MVP
+
+Update date: 2026-07-12
+
+- Added a first local combat resolver for random EventScene encounters; AI dialogue does not decide hit, miss, or damage.
+- Player weapon attacks now require an equipped trained weapon in `mainHand` or `offHand`.
+- The default rusty sword is a one-handed sword with `1d6` slashing Strength damage, and the default player training includes one-handed swords.
+- Combat uses d20 attack rolls, simple dice formulas such as `1d6` and `2d4+1`, critical hits, misses, enemy HP, and defeated NPC state.
+- Enemy counterattacks reduce player combat HP but clamp the MVP at 1 HP instead of triggering game over.
+- Save normalization safely adds player combat stats, training, weapon fields, and NPC combat state without resetting existing progress.
+- Inventory now shows weapon fields and a compact weapon training panel.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## Anariel intro AI and one-time event fix
+
+Update date: 2026-07-12
+
+- Anariel intro is now opened only by the new character creation flow through `activeEvent.eventId = "anariel_intro"`.
+- Continue Game no longer forces saves with `introEventSeen === false` back into the intro scene.
+- `anariel_intro` is no longer attached to the necropolis WorldMap node as an enter event.
+- Re-entering the necropolis now opens the normal `necropolis_gate` location event.
+- The intro scene uses the inline dialogue panel and requests Anariel's first greeting through Local AI with prisoner-specific prompt context.
+- Intro fallback lines keep the scene playable when Local AI is disabled or unavailable.
+- Intro dialogue history is saved in `save.companions.anariel.dialogueHistory` and remains available after rescue.
+- Completing rescue or leaving sets `introEventSeen = true`, clears `activeEvent`, and prevents duplicate intro playback.
+- Build passes with `npm.cmd run build` from `client/`.
+
+## AI language, travel events, inline dialogue, and safe item rewards
+
+Update date: 2026-07-13
+
+- Local AI prompts for Anariel and NPCs now explicitly follow the current game language, so RU UI requests Russian replies and EN UI requests English replies.
+- Random WorldMap travel events keep the existing roll and mid-movement trigger flow and now log `roll`, `pending`, `triggered`, and `continue` stages.
+- EventScene conversations for Anariel and NPCs now render in the lower-left scene dialogue panel, while the right panel remains dedicated to action choices.
+- Added `client/src/data/itemRegistry.ts` for safe item ids and registered the newly supplied item assets under `client/public/assets/items/`.
+- Added hidden AI command parsing for `[[GIVE_ITEM:itemId:quantity]]` and `[[REWARD_GOLD:amount]]`; markers are stripped before dialogue is shown or saved.
+- AI item rewards are validated against actor-specific allow lists before inventory changes, so unknown or disallowed items are ignored with a console warning.
+- Added a scripted gate test choice, Ask for food / Попросить еды, that grants `stale_bread` through the same inventory reward helper and persists it in save data.
 - Build passes with `npm.cmd run build` from `client/`.

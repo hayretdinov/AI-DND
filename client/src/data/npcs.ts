@@ -1,4 +1,5 @@
 import type { NpcDefinition } from "../types/npc";
+import { royalCourtNpcTemplates } from "./royalCourtNpcs";
 
 const NPC_ASSET_PATH = "/assets/npcs/";
 
@@ -48,6 +49,57 @@ export const npcDefinitions: NpcDefinition[] = [
     imageUrl: `${NPC_ASSET_PATH}central_settlement_guard.png`,
     portraitUrl: `${NPC_ASSET_PATH}central_settlement_guard.png`,
     greetingKey: "npc.guard.greeting",
+    defaultMood: "neutral",
+    canUseAiDialogue: true,
+  },
+  {
+    id: "merchant_central_settlement",
+    nameKey: "npc.merchant.central.name",
+    role: "merchant",
+    locationId: "central_settlement",
+    faction: "Free Clans",
+    imageUrl: `${NPC_ASSET_PATH}merchants/central_settlement_merchant.png`,
+    portraitUrl: `${NPC_ASSET_PATH}merchants/central_settlement_merchant.png`,
+    greetingKey: "npc.merchant.central.greeting",
+    defaultMood: "neutral",
+    canUseAiDialogue: true,
+  },
+  {
+    id: "merchant_southern_city",
+    nameKey: "npc.merchant.southern.name",
+    role: "merchant",
+    locationId: "southern_castle",
+    faction: "Southern Watch",
+    imageUrl: `${NPC_ASSET_PATH}merchants/southern_city_merchant.png`,
+    portraitUrl: `${NPC_ASSET_PATH}merchants/southern_city_merchant.png`,
+    greetingKey: "npc.merchant.southern.greeting",
+    defaultMood: "neutral",
+    canUseAiDialogue: true,
+  },
+  {
+    id: "merchant_western_city",
+    nameKey: "npc.merchant.western.name",
+    role: "merchant",
+    locationId: "western_great_city",
+    faction: "Iron Legion",
+    imageUrl: `${NPC_ASSET_PATH}merchants/western_city_merchant.png`,
+    portraitUrl: `${NPC_ASSET_PATH}merchants/western_city_merchant.png`,
+    greetingKey: "npc.merchant.western.greeting",
+    defaultMood: "neutral",
+    canUseAiDialogue: true,
+  },
+  {
+    id: "city_merchant_main",
+    nameKey: "npc.merchant.western.name",
+    role: "merchant",
+    locationId: "western_great_city",
+    stableInstanceId: "city_merchant_main",
+    interiorLocationId: "city_market",
+    persistent: true,
+    faction: "Iron Legion",
+    imageUrl: `${NPC_ASSET_PATH}merchants/western_city_merchant.png`,
+    portraitUrl: `${NPC_ASSET_PATH}merchants/western_city_merchant.png`,
+    greetingKey: "npc.merchant.western.greeting",
     defaultMood: "neutral",
     canUseAiDialogue: true,
   },
@@ -121,6 +173,7 @@ export const npcDefinitions: NpcDefinition[] = [
     defaultMood: "hostile",
     canUseAiDialogue: true,
   },
+  ...royalCourtNpcTemplates,
 ];
 
 export function getNpcById(npcId: string) {

@@ -156,7 +156,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "necropolis",
     type: "danger_point",
     unlocked: true,
-    enterEventId: "anariel_intro",
+    enterEventId: "necropolis_gate",
   },
   {
     id: "swamp_location",

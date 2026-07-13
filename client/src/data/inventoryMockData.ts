@@ -17,6 +17,10 @@ export const defaultInventoryItems: InventoryItem[] = [
     slot: "mainHand",
     stats: { attack: 5 },
     bonuses: { attack: 5 },
+    weaponType: "oneHandedSword",
+    damageDice: "1d6",
+    damageType: "slashing",
+    attackAttribute: "strength",
     icon: "RS",
     createdAt: DEFAULT_CREATED_AT,
   },
@@ -155,13 +159,9 @@ export const defaultInventoryItems: InventoryItem[] = [
 ];
 
 export const defaultInventoryState: InventoryState = {
-  equipment: {
-    amulet: "item_old_amulet_001",
-    bag: "item_small_pouch_001",
-    mainHand: "item_rusty_sword_001",
-  },
+  equipment: {},
   gold: 0,
-  items: defaultInventoryItems,
+  items: [],
   maxCarryWeight: 70,
 };
 
@@ -169,7 +169,11 @@ export function createDefaultInventoryState(): InventoryState {
   return {
     equipment: { ...defaultInventoryState.equipment },
     gold: defaultInventoryState.gold,
-    items: defaultInventoryState.items.map((item) => ({ ...item, bonuses: item.bonuses ? { ...item.bonuses } : undefined, stats: item.stats ? { ...item.stats } : undefined })),
+    items: defaultInventoryState.items.map((item) => ({
+      ...item,
+      bonuses: item.bonuses ? { ...item.bonuses } : undefined,
+      stats: item.stats ? { ...item.stats } : undefined,
+    })),
     maxCarryWeight: defaultInventoryState.maxCarryWeight,
   };
 }
