@@ -4,6 +4,7 @@ import type { InventoryItem, InventoryState } from "../../types/inventory";
 import type { MerchantDeal, MerchantState, MerchantTradeMemory } from "../../types/merchant";
 import type { PlayerCharacter } from "../../types/player";
 import type { GameSave } from "../save/saveSystem";
+import { getPlayerCarryCapacity, resolveEffectivePlayerStats } from "../player/effectivePlayerStats";
 
 type MerchantStockEntry = {
   itemId: ItemId;
@@ -142,8 +143,8 @@ function getConditionMultiplier(item: InventoryItem) {
   return 1;
 }
 
-function getCharismaModifier(player: PlayerCharacter) {
-  return Math.floor(((player.attributes?.charisma ?? 10) - 10) / 2);
+function getCharismaModifier(player: PlayerCharacter, inventory?: InventoryState) {
+  return Math.floor((resolveEffectivePlayerStats(player, inventory).charisma - 10) / 2);
 }
 
 export function calculateMerchantOffer(
@@ -151,11 +152,12 @@ export function calculateMerchantOffer(
   player: PlayerCharacter,
   item: InventoryItem,
   side: MerchantDeal["side"],
+  inventory?: InventoryState,
 ) {
   const base = Math.max(1, item.value * item.quantity);
   const rarity = getRarityMultiplier(item.rarity);
   const condition = getConditionMultiplier(item);
-  const charisma = getCharismaModifier(player);
+  const charisma = getCharismaModifier(player, inventory);
   const relationship = merchant.relationship / 100;
   const deterministicNoise = ((item.id.length + merchant.merchantId.length) % 5) - 2;
   const marketValue = Math.max(1, Math.round(base * rarity * condition));
@@ -183,10 +185,11 @@ export function createMerchantDeal(
   item: InventoryItem,
   side: MerchantDeal["side"],
   quantity = DEFAULT_DEAL_QUANTITY,
+  inventory?: InventoryState,
 ): MerchantState {
   const dealQuantity = Math.max(1, Math.min(item.quantity, Math.floor(quantity)));
   const dealItem = { ...item, quantity: dealQuantity };
-  const price = calculateMerchantOffer(merchant, player, dealItem, side);
+  const price = calculateMerchantOffer(merchant, player, dealItem, side, inventory);
 
   return {
     ...merchant,
@@ -219,14 +222,14 @@ export function parseTradeReply(text: string) {
   };
 }
 
-export function respondToTradeText(merchant: MerchantState, player: PlayerCharacter, text: string): { merchant: MerchantState; text: string } {
+export function respondToTradeText(merchant: MerchantState, player: PlayerCharacter, text: string, inventory?: InventoryState): { merchant: MerchantState; text: string } {
   if (!merchant.activeDeal) {
     return { merchant, text: "" };
   }
 
   const parsed = parseTradeReply(text);
   const deal = merchant.activeDeal;
-  const charisma = getCharismaModifier(player);
+  const charisma = getCharismaModifier(player, inventory);
   const relationshipFactor = Math.max(-0.08, Math.min(0.18, merchant.relationship / 500));
   const maxConcession = Math.max(1, Math.round(deal.basePrice * (0.08 + relationshipFactor + Math.max(0, charisma) * 0.015)));
   const desired = parsed.counterOffer;
@@ -374,11 +377,12 @@ function getInventoryWeight(items: InventoryItem[]) {
   return items.reduce((total, item) => total + item.weight * item.quantity, 0);
 }
 
-function hasCarryCapacity(inventory: InventoryState, item: InventoryItem, quantity: number) {
+function hasCarryCapacity(inventory: InventoryState, item: InventoryItem, quantity: number, player?: PlayerCharacter) {
   const currentWeight = getInventoryWeight(inventory.items);
   const addedWeight = item.weight * quantity;
 
-  return currentWeight + addedWeight <= inventory.maxCarryWeight;
+  const capacity = player ? getPlayerCarryCapacity(player, inventory) : inventory.maxCarryWeight;
+  return currentWeight + addedWeight <= capacity;
 }
 
 function rememberTrade(merchant: MerchantState, memory: Omit<MerchantTradeMemory, "id" | "createdAt">): MerchantState {
@@ -471,7 +475,7 @@ export function confirmMerchantDeal(save: GameSave, merchant: MerchantState): { 
     return { save, merchant, ok: false, reason: "insufficientGold" };
   }
 
-  if (!hasCarryCapacity(inventory, merchantItem, deal.quantity)) {
+  if (!hasCarryCapacity(inventory, merchantItem, deal.quantity, save.player)) {
     return { save, merchant, ok: false, reason: "noSpace" };
   }
 

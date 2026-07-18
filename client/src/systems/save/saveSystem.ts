@@ -55,6 +55,7 @@ import type {
   PlayerMagicState,
 } from "../magic/magicTypes";
 import { normalizePlayerProgression } from "../player/playerProgressionSystem";
+import { getPlayerCarryCapacity } from "../player/effectivePlayerStats";
 
 const SAVE_KEY = "ai-dnd-save";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
@@ -1498,7 +1499,10 @@ function normalizeSave(data: GameSave, resourceOptions?: ResourceRegenerationOpt
     currentDay: Number.isFinite(data.currentDay) ? data.currentDay : DEFAULT_DAY,
     currentHour: Number.isFinite(data.currentHour) ? data.currentHour : DEFAULT_HOUR,
     companions: normalizeCompanions(data),
-    inventory: normalizedInventory,
+    inventory: {
+      ...normalizedInventory,
+      maxCarryWeight: getPlayerCarryCapacity(normalizedPlayerWithProgression, normalizedInventory),
+    },
     npcs: normalizeNpcs(data.npcs),
     merchants: normalizeMerchants(data.merchants),
     cityAccess: normalizeCityAccess(data.cityAccess),

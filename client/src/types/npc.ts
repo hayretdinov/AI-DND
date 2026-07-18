@@ -67,10 +67,21 @@ export type NpcRuntimeState = {
   trust: number;
   fear: number;
   hostility: number;
+  lastSocialCheck?: NpcSocialCheckMemory;
   dialogueHistory: NpcDialogueMessage[];
   learnedKnowledge?: NpcLearnedKnowledge[];
   postCombatMemory?: NpcPostCombatMemory;
   loot?: NpcLootState;
+};
+
+export type NpcSocialCheckType = "persuasion" | "deception" | "intimidation" | "insight" | "knowledge";
+export type NpcSocialCheckOutcome = "criticalFailure" | "failure" | "partialSuccess" | "success" | "criticalSuccess";
+
+export type NpcSocialCheckMemory = {
+  type: NpcSocialCheckType;
+  outcome: NpcSocialCheckOutcome;
+  playerText: string;
+  resolvedAt: string;
 };
 
 export type NpcPostCombatMemory = {

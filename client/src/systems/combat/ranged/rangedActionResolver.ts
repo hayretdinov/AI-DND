@@ -4,6 +4,7 @@ import type { GameSave } from "../../save/saveSystem";
 import { markResourceSpent } from "../../resources/resourceRegeneration";
 import { normalizePlayerProgression } from "../../player/playerProgressionSystem";
 import { getAttributeModifier, rollD20, rollDice } from "../diceSystem";
+import { resolveEffectivePlayerStats } from "../../player/effectivePlayerStats";
 import { normalizeNpcCombatState } from "../combatSystem";
 import { markNpcDefeatedAfterCombat } from "../postCombatSystem";
 import { createDefaultPlayerTextCombatState, spendCombatStamina } from "../text/combatStamina";
@@ -188,7 +189,7 @@ export function resolveRangedCombatAction(
   const weaponConfig = rangedWeaponConfig[validation.weaponCategory];
   const shotType = getShotType(action);
   const attackAttribute = weapon.attackAttribute ?? "dexterity";
-  const attributeModifier = getAttributeModifier(normalizedPlayer.attributes[attackAttribute]);
+  const attributeModifier = getAttributeModifier(resolveEffectivePlayerStats(normalizedPlayer, save.inventory)[attackAttribute]);
   const proficiencyBonus = normalizedPlayer.training?.weapons[validation.weaponType] ? 2 : 0;
   const aimModifier = getAimModifier(weaponState.aimState, action);
   const stanceModifier = getStanceModifier(action.stance);

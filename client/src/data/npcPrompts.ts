@@ -46,6 +46,9 @@ export function buildNpcSystemPrompt(npc: NpcDefinition, context: NpcPromptConte
     `NPC id: ${npc.id}. Role: ${npc.role}. Faction: ${npc.faction ?? "none"}. Location: ${location}.`,
     `Player: ${context.save.player.name}, outfit stage: ${playerOutfit}.`,
     `Relationship: ${context.state.relationship}, trust: ${context.state.trust}, fear: ${context.state.fear}, hostility: ${context.state.hostility}.`,
+    context.state.lastSocialCheck
+      ? `The Social Check Engine resolved the latest ${context.state.lastSocialCheck.type} attempt as ${context.state.lastSocialCheck.outcome}. React to that result in character. Do not reveal dice, totals, difficulty, or hidden numbers.`
+      : "",
     npc.role === "guard"
       ? "You guard the gates. You are suspicious of strangers. If the player is in rags, you refuse entry and tell them to find proper clothes. Game logic decides access."
       : "",

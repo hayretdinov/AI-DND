@@ -5,6 +5,7 @@ import type { InventoryItem } from "../../types/inventory";
 import type { NpcInstance, NpcLootState, NpcPostCombatMemory, NpcRole, NpcStatus } from "../../types/npc";
 import type { PlayerCharacter } from "../../types/player";
 import type { GameSave } from "../save/saveSystem";
+import { getPlayerCarryCapacity } from "../player/effectivePlayerStats";
 
 export type PostCombatIntent =
   | "execute"
@@ -52,6 +53,9 @@ const INTELLIGENT_ROLES = new Set<NpcRole>([
 ]);
 
 const LOOT_BY_TEMPLATE_ID: Record<string, Array<{ itemId: string; quantity?: number }>> = {
+  skeleton_warrior_01: [
+    { itemId: "rusty_sword" },
+  ],
   orc_bandit_archer: [
     { itemId: "simple_bow" },
     { itemId: "simple_arrows", quantity: 8 },
@@ -349,7 +353,7 @@ function getInventoryWeight(items: InventoryItem[]) {
 
 function canCarryItem(save: GameSave, item: InventoryItem) {
   const inventory = save.inventory ?? createDefaultInventoryState();
-  return getInventoryWeight(inventory.items) + item.weight * item.quantity <= inventory.maxCarryWeight;
+  return getInventoryWeight(inventory.items) + item.weight * item.quantity <= getPlayerCarryCapacity(save.player, inventory);
 }
 
 function addLootToPlayerInventory(save: GameSave, item: InventoryItem): GameSave {

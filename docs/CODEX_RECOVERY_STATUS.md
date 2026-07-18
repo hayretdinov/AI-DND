@@ -1,5 +1,14 @@
 # Codex Recovery Status
 
+## 2026-07-18 Effective Attributes, Monster Input, And Swamp Skeleton
+
+- Added one effective attribute resolver and connected it to melee, unarmed, ranged, initiative, HP/stamina, magic, carry capacity, inventory display, merchant reactions, and structured social checks.
+- Social outcomes are engine-owned, saved in NPC memory, and passed to NPC AI without exposing rolls or difficulty in visible text.
+- Fixed the monster input regression caused by `EventScene` setting the shared `SceneDialoguePanel` to both disabled and read-only for every living monster.
+- Added the existing skeleton asset as a unique persistent encounter beside the swamp graveyard, with sword combat/loot and no monster meat.
+- Added compile-time fixtures for attributes, social checks, input phases, and skeleton registration/loot.
+- Verification: `npm.cmd run build` passed; only the existing Vite chunk-size warning remains. No separate lint or test scripts exist.
+
 ## 2026-07-18 Combat Thought Hints
 
 - Added deterministic combat hint generation in `client/src/systems/combat/combatThoughtHints.ts`.

@@ -30,7 +30,9 @@ const cases: Array<{ text: string; route: ChatRoute }> = [
   { text: "Нападаю на разбойника.", route: "meleeCombat" },
   { text: "Атакую стражника.", route: "meleeCombat" },
   { text: "Бью его мечом.", route: "meleeCombat" },
+  { text: "Бью скелета мечом.", route: "meleeCombat" },
   { text: "Бью разбойника кулаком.", route: "meleeCombat" },
+  { text: "Бью скелета кулаком.", route: "meleeCombat" },
   { text: "Пинаю разбойника в ногу.", route: "meleeCombat" },
   { text: "Толкаю разбойника щитом.", route: "meleeCombat" },
   { text: "Хватаю разбойника за руку.", route: "meleeCombat" },
@@ -39,6 +41,7 @@ const cases: Array<{ text: string; route: ChatRoute }> = [
   { text: "Колю кинжалом в корпус.", route: "meleeCombat" },
   { text: "Пытаюсь ударить дубиной.", route: "meleeCombat" },
   { text: "Стреляю в волка.", route: "rangedCombat" },
+  { text: "Стреляю в скелета из лука.", route: "rangedCombat" },
   { text: "Выпускаю стрелу в разбойника.", route: "rangedCombat" },
   { text: "Выпускаю болт в разбойника.", route: "rangedCombat" },
   { text: "Нажимаю на спуск арбалета и стреляю.", route: "rangedCombat" },
@@ -66,6 +69,7 @@ const cases: Array<{ text: string; route: ChatRoute }> = [
   { text: "Я спрашиваю Эдгара, как лучше колоть мечом.", route: "trainingRequest" },
   { text: "Я достаю меч и атакую стражника.", route: "meleeCombat" },
   { text: "Покупаю арбалет и спрашиваю, как им стрелять.", route: "trade" },
+  { text: "Научи меня бить мечом.", route: "trainingRequest" },
 ];
 
 for (const testCase of cases) {

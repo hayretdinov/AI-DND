@@ -348,3 +348,7 @@ Codex не должен:
 ## Companion System
 
 Anariel has a planned visual progression with dedicated assets stored in `assets/companions/anariel/`: prisoner in chains, standing in chains, relieved in chains, traveling in rags, traveling in normal clothes, and traveling in armor.
+
+## Effective Attributes And Non-Sapient Combat
+
+Runtime systems must consume `resolveEffectivePlayerStats`; they must not recompute racial or equipment bonuses independently. Combat and social outcomes belong to deterministic game systems, while AI may narrate only the resolved result. Non-sapient creatures do not use NPC dialogue, but they share the same free-text combat input and turn engine. The swamp skeleton uses the existing map, event scene, persistent NPC state, and inventory loot path.

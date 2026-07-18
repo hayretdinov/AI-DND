@@ -4,6 +4,7 @@ import type { GameSave } from "../../save/saveSystem";
 import { markResourceSpent } from "../../resources/resourceRegeneration";
 import { normalizePlayerProgression } from "../../player/playerProgressionSystem";
 import { getAttributeModifier, rollD20, rollDice } from "../diceSystem";
+import { resolveEffectivePlayerStats } from "../../player/effectivePlayerStats";
 import { normalizeNpcCombatState } from "../combatSystem";
 import { markNpcDefeatedAfterCombat } from "../postCombatSystem";
 import { shiftDistance } from "./combatDistance";
@@ -175,7 +176,7 @@ export function resolveTextCombatAction(save: GameSave, npcInstance: NpcInstance
   const weapon = validation.weapon;
   const weaponDefinition = getMeleeWeaponDefinition(action.weaponCategory);
   const attackAttribute = weaponDefinition?.attackAttribute ?? weapon?.attackAttribute ?? "strength";
-  const attributeModifier = getAttributeModifier(normalizedPlayer.attributes[attackAttribute]);
+  const attributeModifier = getAttributeModifier(resolveEffectivePlayerStats(normalizedPlayer, save.inventory)[attackAttribute]);
   const proficiencyBonus = validation.weaponType && validation.weaponType !== "unarmed" && normalizedPlayer.training?.weapons[validation.weaponType] ? 2 : 0;
   const targetZoneDifficulty = getBodyZoneDifficulty(action.targetZone);
   const powerModifier = getPowerModifier(action.power);

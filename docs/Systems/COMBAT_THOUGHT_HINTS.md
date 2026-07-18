@@ -51,3 +51,5 @@ The "Thoughts" panel is not a command menu. Each example is rendered as inline t
 
 - `npm.cmd run build` in `client` passed on 2026-07-18.
 - The client has no separate `test` script; the `.test.ts` fixtures compile as part of the TypeScript build.
+
+The same hint insertion target remains available for non-sapient combat. `usesNpcDialogue = false` does not remove the shared textarea, so selecting a hint can still populate the next player action.

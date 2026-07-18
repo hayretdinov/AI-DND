@@ -14,6 +14,7 @@ import { getAttributeModifier, rollD20, rollDice } from "./diceSystem";
 import { validatePlayerCanAttack } from "./combatValidation";
 import { normalizePlayerProgression } from "../player/playerProgressionSystem";
 import { getNpcLifeState, markNpcDefeatedAfterCombat } from "./postCombatSystem";
+import { resolveEffectivePlayerStats } from "../player/effectivePlayerStats";
 
 export type EnemyAttackResult = {
   actionId: string;
@@ -42,6 +43,18 @@ export type PlayerAttackResult = {
 };
 
 function getDefaultNpcCombat(role: NpcRole, templateId: string): NpcCombatState {
+  if (templateId === "skeleton_warrior_01") {
+    return {
+      maxHealth: 14,
+      currentHealth: 14,
+      armorClass: 13,
+      attackBonus: 3,
+      damageDice: "1d8",
+      damageType: "slashing",
+      isDefeated: false,
+    };
+  }
+
   if (role === "monster" || templateId.includes("beast") || templateId.includes("rat")) {
     return {
       maxHealth: 8,
@@ -152,7 +165,7 @@ function createPlayerCombatant(save: GameSave, initiative?: number): CombatantSt
   const currentStamina = player.textCombat?.stamina ?? maxStamina;
   const maxMana = player.magic?.maxMana ?? 0;
   const currentMana = player.magic?.mana ?? 0;
-  const dexterityModifier = getAttributeModifier(player.attributes.dexterity);
+  const dexterityModifier = getAttributeModifier(resolveEffectivePlayerStats(player, save.inventory).dexterity);
   const playerLifeState = player.lifeState ?? (playerCombat.currentHealth <= 0 ? "dead" : "active");
   const isDead = playerLifeState === "dead" || playerCombat.currentHealth <= 0;
   const isDefeated = playerLifeState === "defeated" || playerLifeState === "robbed";
@@ -520,7 +533,7 @@ export function resolvePlayerAttack(
 
   const weapon = validation.weapon;
   const attackAttribute = weapon.attackAttribute ?? "strength";
-  const attributeModifier = getAttributeModifier(normalizedPlayer.attributes[attackAttribute]);
+  const attributeModifier = getAttributeModifier(resolveEffectivePlayerStats(normalizedPlayer, save.inventory)[attackAttribute]);
   const proficiencyBonus = validation.weaponType !== "unarmed" && normalizedPlayer.training?.weapons[validation.weaponType] ? 2 : 0;
   const attackBonus = attributeModifier + proficiencyBonus;
   const d20 = rollD20();

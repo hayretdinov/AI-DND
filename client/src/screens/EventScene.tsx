@@ -106,6 +106,8 @@ import {
 import { createGameMasterNarration } from "../systems/gameMaster/gameMasterSystem";
 import { classifyChatMessage } from "../systems/intent/chatIntentRouter";
 import { parsePlayerIntent, type PlayerIntent } from "../systems/intent/playerIntentSystem";
+import { getSocialCheckType, resolveSocialCheck } from "../systems/npc/socialCheckSystem";
+import { getCombatInputPolicy } from "../systems/combat/combatInputPolicy";
 import {
   formatMagicResolutionMessage,
   parseMagicFormula,
@@ -1137,6 +1139,18 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     currentChatSave?.player.lifeState === "robbed" ||
     currentChatSave?.activeCombat?.postCombatPhase === "playerDefeated"
   );
+  const sceneCombat = currentChatSave?.activeCombat?.combatants[npcState?.instanceId ?? ""]
+    ? currentChatSave.activeCombat
+    : null;
+  const combatInputPolicy = getCombatInputPolicy({
+    hasCombatScene: Boolean(activeNpc && isTextCombatScene(activeNpc, npcState)),
+    canUseNpcDialogue: Boolean(activeNpc?.canUseAiDialogue && !isNpcDead && !isNpcGone),
+    targetActive: Boolean(npcState && npcState.status === "alive" && !npcState.combat?.isDefeated),
+    playerCanAct: Boolean(currentChatSave && !isPlayerDead && !isPlayerDefeated),
+    combatPhase: sceneCombat?.phase,
+    activeCombatantId: sceneCombat?.activeCombatantId,
+    playerId: currentChatSave?.player.id,
+  });
   const isRags = (currentChatSave?.player.currentOutfitStage ?? "rags") === "rags";
   const playerInventoryItems = currentChatSave?.inventory?.items ?? [];
   const playerGold = currentChatSave?.inventory?.gold ?? 0;
@@ -1862,7 +1876,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       return;
     }
 
-    const nextMerchant = createMerchantDeal(merchantState, sourceSave.player, item, tradeItem.side, 1);
+    const nextMerchant = createMerchantDeal(merchantState, sourceSave.player, item, tradeItem.side, 1, sourceSave.inventory);
     const price = nextMerchant.activeDeal?.merchantOffer ?? 0;
     const playerLine = t(tradeItem.side === "player_sells" ? "merchant.trade.playerOffersSell" : "merchant.trade.playerOffersBuy");
     const merchantLine = formatMerchantTradeText(
@@ -2675,9 +2689,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
 
     if (isGateScene && (intent.type === "request_city_entry" || intent.type === "show_document" || intent.type === "persuade" || intent.type === "negotiate" || intent.type === "bribe")) {
       const cityId = dynamicCityId;
-      const allowed = Boolean(cityId) && (!isRags || intent.type === "show_document");
+      const socialType = getSocialCheckType(intent);
+      const socialResolution = socialType
+        ? resolveSocialCheck(sourceSave, npcState, socialType, playerText, { difficultyModifier: isRags ? 2 : 0 })
+        : null;
+      const allowedByStatus = !isRags && intent.type === "request_city_entry";
+      const allowed = Boolean(cityId) && (
+        intent.type === "show_document" ||
+        allowedByStatus ||
+        socialResolution?.result.outcome === "success" ||
+        socialResolution?.result.outcome === "criticalSuccess"
+      );
       const gateResultKey: TranslationKey = allowed ? "city.accessAllowed" : "city.accessDenied";
-      const nextNpcState = appendNpcDialogueMessages(npcState, playerText, t(gateResultKey));
+      const nextNpcState = appendNpcDialogueMessages(socialResolution?.npc ?? npcState, playerText, t(gateResultKey));
       const nextSave: GameSave = {
         ...sourceSave,
         cityAccess: cityId
@@ -2710,7 +2734,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     }
 
     if (isMerchantScene && merchantState?.activeDeal) {
-      const response = respondToTradeText(merchantState, sourceSave.player, playerText);
+      const response = respondToTradeText(merchantState, sourceSave.player, playerText, sourceSave.inventory);
       const dealItem = activeMerchantDealItem;
       console.info("[MerchantBargain] state", {
         merchantId: merchantState.merchantId,
@@ -2789,11 +2813,14 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     }
 
     const tonedNpc = applyNpcToneDelta(npcState, playerText);
+    const socialType = getSocialCheckType(intent);
+    const socialResolution = socialType ? resolveSocialCheck(sourceSave, tonedNpc, socialType, playerText) : null;
+    const resolvedNpc = socialResolution?.npc ?? tonedNpc;
     const fallbackReply = t(getNpcFallbackReplyKey(activeNpc, npcState.dialogueHistory.length) as TranslationKey);
     let aiReply: Awaited<ReturnType<typeof getNpcAiReply>>;
 
     try {
-      aiReply = await getNpcAiReply(sourceSave, activeNpc, tonedNpc, playerText);
+      aiReply = await getNpcAiReply(sourceSave, activeNpc, resolvedNpc, playerText);
     } catch (error) {
       console.error("[NpcChat] failed to get AI reply", error);
       setNpcChatNotice(t("dialogue.sendError"));
@@ -2810,7 +2837,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       language: getLanguage(),
       context: sourceSave.activeEvent?.eventId ?? "npc_dialogue",
     });
-    const nextNpcState = appendNpcDialogueMessages(tonedNpc, playerText, sanitizedReply.cleanText);
+    const nextNpcState = appendNpcDialogueMessages(resolvedNpc, playerText, sanitizedReply.cleanText);
     const nextSaveWithDialogue: GameSave = {
       ...sourceSave,
       npcs: {
@@ -2832,7 +2859,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     saveGame(rewardResult.save);
     setChatSave(rewardResult.save);
     setRewardToast(getRewardToast(rewardResult.itemRewards, rewardResult.goldRewards));
-    setNpcChatNotice("");
+    setNpcChatNotice(socialResolution ? t(socialResolution.result.messageKey) : "");
     setNpcChatInput("");
     setIsNpcThinking(false);
   };
@@ -3202,8 +3229,9 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
             isThinking={isNpcThinking}
             thinkingText={activeNpc.role === "monster" ? t("sceneDialogue.thinkingMonster") : t("sceneDialogue.thinkingNpc")}
             notice={npcChatNotice || rewardToast}
-            disabled={Boolean(isPlayerDead || isNpcGone || (activeNpc.role === "monster" && !isNpcDead && !isNpcDefeatedAlive))}
-            readOnly={Boolean(isPlayerDead || isNpcGone || (activeNpc.role === "monster" && !isNpcDead && !isNpcDefeatedAlive))}
+            disabled={combatInputPolicy.disabled}
+            readOnly={combatInputPolicy.readOnly}
+            inputPlaceholder={combatInputPolicy.waitingForEnemy ? t("combat.waitForEnemyTurn") : combatInputPolicy.canUseCombatInput ? t("combat.inputPlaceholder") : undefined}
             actions={
               <>
               {isPlayerDefeated ? (

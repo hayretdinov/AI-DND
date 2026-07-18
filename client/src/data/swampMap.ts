@@ -83,6 +83,15 @@ export const swampMapLocations: SwampMapLocation[] = [
     markerType: "crypt",
   },
   {
+    id: "sunken_skeleton_grave",
+    titleKey: "swamp.location.skeletonGrave.title",
+    descriptionKey: "swamp.location.skeletonGrave.description",
+    xPercent: 57.8,
+    yPercent: 46.8,
+    markerType: "monster",
+    eventId: "swamp_skeleton_grave",
+  },
+  {
     id: "swamp_islands",
     titleKey: "swamp.location.islands.title",
     descriptionKey: "swamp.location.islands.description",

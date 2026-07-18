@@ -34,14 +34,18 @@ export type ChatClassificationContext = {
   activeTrade?: boolean;
 };
 
-const weaponPattern = /\b(меч|мечом|кинжал|кинжалом|нож|ножом|лук|лука|арбалет|арбалета|стрел[ауы]|болт|дубин[аойу]|булав[аойу]|молот|молотом|копь[её]м?|посох|посохом|топор|топором|щит|оружие|sword|dagger|knife|bow|crossbow|arrow|bolt|club|mace|hammer|spear|staff|axe|shield|weapon)\b/i;
-const tradePattern = /\b(купить|покупаю|куплю|продать|продаю|продам|торг|товар|цена|стоимость|стоит|монет|золота|лавка|торгов|buy|sell|trade|price|cost|gold|merchant|shop|how much)\b/i;
-const trainingPattern = /\b(научи|учусь|обуч|тренир|покажи как|как лучше|как правильно|урок|наставник|манекен|teach|learn|train|lesson|trainer|show me how)\b/i;
-const historicalPattern = /\b(рассказываю|расскажи|прошл[аоые]|раньше|когда-то|вчера|видел как|видел, как|слышал как|слышал, как|что означает|что будет если|story|tell me|past|yesterday|used to|saw how|heard how|what does|what happens if)\b/i;
-const inventoryPattern = /\b(инвентар|рюкзак|экипир|надеть|снять|убрать в сумку|inventory|backpack|equip|unequip)\b/i;
-const negationPattern = /\b(не|нет|не хочу|не буду|не собираюсь|отменяю|перестаю|избегаю|воздерживаюсь|no|not|do not|don't|won't|avoid|cancel|stop)\b/i;
-const questionPattern = /[?？]|(?:\b|^)(что|как|почему|можно|сколько|где|когда|зачем|означает|значит|объясни|what|how|why|can|could|where|when|does|mean)(?:\b|$)/i;
-const magicDiscussionPattern = /\b(рассказывал|рассказывала|рассказывали|рассказал|рассказала|объяснял|объясняла|учил|учила|говорил|говорила|told|explained|taught)\b/i;
+function createUnicodeWordPattern(source: string) {
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}_])(${source})(?=$|[^\\p{L}\\p{N}_])`, "iu");
+}
+
+const weaponPattern = createUnicodeWordPattern("меч|мечом|кинжал|кинжалом|нож|ножом|лук|лука|арбалет|арбалета|стрел[ауы]|болт|дубин[аойу]|булав[аойу]|молот|молотом|копь[её]м?|посох|посохом|топор|топором|щит|оружие|sword|dagger|knife|bow|crossbow|arrow|bolt|club|mace|hammer|spear|staff|axe|shield|weapon");
+const tradePattern = createUnicodeWordPattern("купить|покупаю|куплю|продать|продаю|продам|торг|товар|цена|стоимость|стоит|монет|золота|лавка|торгов|buy|sell|trade|price|cost|gold|merchant|shop|how much");
+const trainingPattern = createUnicodeWordPattern("научи|учусь|обуч[\\p{L}]*|тренир[\\p{L}]*|покажи как|как стрелять|как бить|как сражаться|как лучше|как правильно|урок|наставник|манекен|teach|learn|train|lesson|trainer|show me how");
+const historicalPattern = createUnicodeWordPattern("рассказываю|расскажи|прошл[аоые]|раньше|когда-то|вчера|видел как|видел, как|слышал как|слышал, как|что означает|что будет если|story|tell me|past|yesterday|used to|saw how|heard how|what does|what happens if");
+const inventoryPattern = createUnicodeWordPattern("инвентар|рюкзак|экипир|надеть|снять|убрать в сумку|inventory|backpack|equip|unequip");
+const negationPattern = createUnicodeWordPattern("не|нет|не хочу|не буду|не собираюсь|отменяю|перестаю|избегаю|воздерживаюсь|no|not|do not|don't|won't|avoid|cancel|stop");
+const questionPattern = /[?？]|(?:^|[^\p{L}\p{N}_])(что|как|почему|можно|сколько|где|когда|зачем|означает|значит|объясни|what|how|why|can|could|where|when|does|mean)(?=$|[^\p{L}\p{N}_])/iu;
+const magicDiscussionPattern = createUnicodeWordPattern("рассказывал|рассказывала|рассказывали|рассказал|рассказала|объяснял|объясняла|учил|учила|говорил|говорила|told|explained|taught");
 
 const startCombatPhrases = [
   "начинаю бой",
@@ -160,9 +164,9 @@ function includesAny(text: string, phrases: string[]) {
 
 function removeNegatedCombatClauses(text: string) {
   return text
-    .replace(/\bне\s+(?:хочу\s+|буду\s+|собираюсь\s+)?(?:атакую|атаковать|нападаю|стреляю|выстрелю|бью|ударяю|колю|рублю|режу|применяю|применять|произношу|колдую|начинаю бой|начинать бой)[^,.!?;]*(?=$|[,.!?;]|\s+а\s+|\s+но\s+)/gi, " ")
-    .replace(/\b(?:отменяю|перестаю|избегаю|воздерживаюсь)\s+(?:от\s+)?(?:атаки|выстрела|заклинания|боя)[^,.!?;]*(?=$|[,.!?;]|\s+а\s+|\s+но\s+)/gi, " ")
-    .replace(/\b(?:do not|don't|not|won't|avoid|cancel|stop)\s+(?:attack|shoot|hit|strike|cast|start combat)[^,.!?;]*(?=$|[,.!?;]|\s+but\s+)/gi, " ");
+    .replace(/(^|[^\p{L}\p{N}_])не\s+(?:хочу\s+|буду\s+|собираюсь\s+)?(?:атакую|атаковать|нападаю|стреляю|выстрелю|бью|ударяю|колю|рублю|режу|применяю|применять|произношу|колдую|начинаю бой|начинать бой)[^,.!?;]*(?=$|[,.!?;]|\s+а\s+|\s+но\s+)/giu, "$1 ")
+    .replace(/(^|[^\p{L}\p{N}_])(?:отменяю|перестаю|избегаю|воздерживаюсь)\s+(?:от\s+)?(?:атаки|выстрела|заклинания|боя)[^,.!?;]*(?=$|[,.!?;]|\s+а\s+|\s+но\s+)/giu, "$1 ")
+    .replace(/(^|[^\p{L}\p{N}_])(?:do not|don't|not|won't|avoid|cancel|stop)\s+(?:attack|shoot|hit|strike|cast|start combat)[^,.!?;]*(?=$|[,.!?;]|\s+but\s+)/giu, "$1 ");
 }
 
 function detectSpellFormula(text: string) {
@@ -210,7 +214,7 @@ export function classifyChatMessage(text: string, context: ChatClassificationCon
   const negated = negationPattern.test(normalizedText);
   const questionContext = questionPattern.test(normalizedText);
   const magicDiscussionContext = magicDiscussionPattern.test(normalizedText);
-  const detectedWeapon = normalizedText.match(weaponPattern)?.[0];
+  const detectedWeapon = normalizedText.match(weaponPattern)?.[1];
   const nonNegatedText = removeNegatedCombatClauses(normalizedText);
   const onlyNegatedCombat =
     negated &&
@@ -246,19 +250,19 @@ export function classifyChatMessage(text: string, context: ChatClassificationCon
       trainingContext,
       tradeContext,
       detectedWeapon,
-      matchedPhrases: [normalizedText.match(tradePattern)?.[0] ?? "trade"],
+      matchedPhrases: [normalizedText.match(tradePattern)?.[1] ?? "trade"],
     });
   }
 
   if (trainingContext) {
-    return createResult("trainingRequest", {
+    return createResult(context.npcRole === "trainer" ? "training" : "trainingRequest", {
       confidence: 0.86,
       negated,
       historicalContext,
       trainingContext,
       tradeContext,
       detectedWeapon,
-      matchedPhrases: [normalizedText.match(trainingPattern)?.[0] ?? "training"],
+      matchedPhrases: [normalizedText.match(trainingPattern)?.[1] ?? "training"],
     });
   }
 
@@ -270,7 +274,7 @@ export function classifyChatMessage(text: string, context: ChatClassificationCon
       trainingContext,
       tradeContext,
       detectedWeapon,
-      matchedPhrases: [normalizedText.match(inventoryPattern)?.[0] ?? "inventory"],
+      matchedPhrases: [normalizedText.match(inventoryPattern)?.[1] ?? "inventory"],
     });
   }
 
@@ -282,7 +286,7 @@ export function classifyChatMessage(text: string, context: ChatClassificationCon
       trainingContext,
       tradeContext,
       detectedWeapon,
-      matchedPhrases: [normalizedText.match(historicalPattern)?.[0] ?? "historical"],
+      matchedPhrases: [normalizedText.match(historicalPattern)?.[1] ?? "historical"],
       warnings: detectedWeapon ? ["historicalWeaponMentionWithoutCombatIntent"] : [],
     });
   }

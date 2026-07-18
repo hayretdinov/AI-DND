@@ -176,7 +176,7 @@ function getModifier(value: number) {
 
 function getDerivedStats(attributes: Attributes): DerivedStats {
   return {
-    health: 10 + getModifier(attributes.constitution),
+    health: 10 + getModifier(attributes.constitution) * 2,
     stamina: 10 + getModifier(attributes.strength) + getModifier(attributes.constitution),
     armorClass: 10 + getModifier(attributes.dexterity),
   };

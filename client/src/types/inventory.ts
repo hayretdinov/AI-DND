@@ -1,4 +1,5 @@
 import type { AttackAttribute, DamageType, WeaponType } from "./combat";
+import type { Attributes } from "./player";
 
 export type InventoryCategory =
   | "all"
@@ -98,6 +99,7 @@ export type InventoryItem = {
   iconUrl?: string;
   fallbackIconType?: FallbackIconType;
   bonuses?: ItemStats;
+  attributeBonuses?: Partial<Attributes>;
   weaponType?: WeaponType;
   damageDice?: string;
   damageType?: DamageType;

@@ -83,3 +83,5 @@ Player-facing chat receives only sanitized Game Master text. Rolls, armor class,
 ## Save Safety
 
 `saveSystem` normalizes `activeCombat` for old and current saves. Invalid or empty combat state is discarded. Saved action ids prevent double application across rerenders or callback repetition.
+
+`combatInputPolicy` mirrors turn phases in the shared textarea: enabled on `awaitingPlayerAction`, disabled during resolution/enemy turns, and restored after the enemy resolver. This policy applies equally to NPCs, beasts, monsters, and undead.

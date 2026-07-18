@@ -826,6 +826,13 @@ Update date: 2026-07-11
 - Lightweight validation reports duplicate node ids, missing route endpoints, missing coordinates, and coordinates outside 0-100.
 - Build passes with `npm.cmd run build` from `client/`.
 
+## 2026-07-18 Attribute And Monster Combat Update
+
+- Effective player attributes now drive combat, resources, magic, carrying, commerce, and social outcomes through one resolver.
+- Living monsters accept free-text combat commands through the shared dialogue input on the player's turn.
+- A persistent sword-wielding skeleton encounter was added beside the swamp graveyard using the existing asset.
+- TypeScript fixtures and production build pass; the project has no separate lint/test scripts.
+
 ## Branding assets added
 
 Update date: 2026-07-11

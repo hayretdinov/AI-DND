@@ -6,6 +6,8 @@ import { markNpcDefeatedAfterCombat } from "../combat/postCombatSystem";
 import { markResourceSpent } from "../resources/resourceRegeneration";
 import { recordMagicAttempt } from "./magicProgression";
 import type { MagicValidationResult, SpellResolutionResult } from "./magicTypes";
+import { getAttributeModifier } from "../combat/diceSystem";
+import { resolveEffectivePlayerStats } from "../player/effectivePlayerStats";
 
 type SpellResolverContext = {
   npcInstance?: NpcInstance | null;
@@ -40,10 +42,11 @@ export function resolveSpell(
   }
 
   const magic = save.player.magic!;
+  const intelligenceModifier = getAttributeModifier(resolveEffectivePlayerStats(save.player, save.inventory).intelligence);
   const roll = rollD20();
   const critical = roll === 20;
   const fumble = roll === 1;
-  const success = critical || (!fumble && roll + magic.magicLevel >= validation.spell.difficultyClass);
+  const success = critical || (!fumble && roll + magic.magicLevel + intelligenceModifier >= validation.spell.difficultyClass);
   const manaSpent = validation.manaCost;
   const nextMagicBase = recordMagicAttempt(
     {
@@ -94,7 +97,7 @@ export function resolveSpell(
 
   if (validation.spell.damageDice && nextNpc) {
     const npcCombat = normalizeNpcCombatState(nextNpc.templateId, nextNpc.role, nextNpc.combat);
-    damage = Math.max(1, rollDice(validation.spell.damageDice) + Math.max(0, magic.magicLevel - 1));
+    damage = Math.max(1, rollDice(validation.spell.damageDice) + Math.max(0, magic.magicLevel - 1) + Math.max(0, intelligenceModifier));
     damage = critical ? damage * 2 : damage;
     const nextHealth = Math.max(0, npcCombat.currentHealth - damage);
     const damagedNpc = {
@@ -111,7 +114,7 @@ export function resolveSpell(
   }
 
   if (validation.spell.healingDice && save.player.combat) {
-    healing = Math.max(1, rollDice(validation.spell.healingDice) + Math.max(0, magic.magicLevel - 1));
+    healing = Math.max(1, rollDice(validation.spell.healingDice) + Math.max(0, magic.magicLevel - 1) + Math.max(0, intelligenceModifier));
     nextPlayer = {
       ...nextPlayer,
       combat: {

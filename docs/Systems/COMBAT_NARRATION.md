@@ -28,3 +28,5 @@ Visible melee, ranged and magic narration is formatted through:
 - `client/src/systems/magic/magicMessages.ts`
 
 When adding new combat output, keep exact resolver details in debug/internal objects and expose only narrative outcome text to the dialogue and combat log UI.
+
+Non-sapient enemies, including the swamp skeleton, never generate human dialogue. Their actions and results are described by the existing Game Master narration path.

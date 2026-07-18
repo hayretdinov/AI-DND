@@ -203,6 +203,17 @@ export const locationEvents: LocationEventDefinition[] = [
     locationId: "swamp_location",
     type: "npc",
   },
+  {
+    id: "swamp_skeleton_grave",
+    titleKey: "swamp.event.skeleton.title",
+    locationTitleKey: "worldMapSwampLocationTitle",
+    locationSubtitleKey: "swamp.event.skeleton.subtitle",
+    descriptionKey: "swamp.event.skeleton.description",
+    backgroundImage: `${LOCATION_ASSET_PATH}swamp.png`,
+    npcId: "skeleton_warrior_01",
+    locationId: "swamp_location",
+    type: "npc",
+  },
   ...royalCourtNpcTemplates.map((npc): LocationEventDefinition => ({
     id: getRoyalCourtEventId(npc.id),
     titleKey: npc.nameKey,

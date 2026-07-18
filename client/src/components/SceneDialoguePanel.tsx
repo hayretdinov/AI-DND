@@ -28,6 +28,7 @@ type SceneDialoguePanelProps = {
   stats?: Array<{ label: string; value: string | number }>;
   headerActions?: ReactNode;
   actions?: ReactNode;
+  inputPlaceholder?: string;
 };
 
 export function SceneDialoguePanel({
@@ -49,6 +50,7 @@ export function SceneDialoguePanel({
   stats = [],
   headerActions,
   actions,
+  inputPlaceholder,
 }: SceneDialoguePanelProps) {
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -163,7 +165,7 @@ export function SceneDialoguePanel({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder={t("dialogue.inputPlaceholder")}
+            placeholder={inputPlaceholder ?? t("dialogue.inputPlaceholder")}
             rows={2}
             disabled={disabled || isThinking || isSubmitting}
           />

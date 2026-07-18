@@ -1,5 +1,11 @@
 # AI-DND Asset Manifest
 
+## Swamp Enemy Assets
+
+| Asset | File Path | Use | Status |
+| --- | --- | --- | --- |
+| Skeleton warrior | `client/public/assets/npcs/skeleton_warrior.png` | Persistent `skeleton_warrior_01` encounter at `sunken_skeleton_grave` on the cursed swamp map | registered |
+
 ## Branding Assets
 
 | Asset | File Path | Use | Status |
