@@ -1092,3 +1092,14 @@ Update date: 2026-07-18
 - The development server started successfully for a short check and was stopped afterward.
 - Current status: `READY_FOR_DEPLOYMENT_PREPARATION`.
 - Full report: `docs/PROJECT_AUDIT.md`.
+
+## Deployment preparation
+
+Update date: 2026-07-18
+
+- Frontend prepared for static deployment from `client`.
+- Added root `vercel.json` with Vite build settings and SPA rewrite.
+- Added root `netlify.toml` with the `client` base directory and SPA fallback.
+- Added the Russian deployment guide at `docs/DEPLOYMENT.md`.
+- Backend, AI, database, accounts, and server saves are not implemented for this deployment stage.
+- Next step: push the project to GitHub and connect the repository to Vercel or Netlify.
