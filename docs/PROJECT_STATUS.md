@@ -1124,3 +1124,14 @@ Update date: 2026-07-18
 - Game Engine remains responsible for game state, rules, rewards, and saves.
 - Future step: implement a protected backend AI proxy for `POST /api/ai/dialogue`.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Backend AI proxy scaffold
+
+Update date: 2026-07-18
+
+- Added the server-side `POST /api/ai/dialogue` scaffold.
+- The endpoint validates requests and returns a backend mock response.
+- No real AI provider is connected.
+- No API keys or secrets were added.
+- Frontend default remains `mock` mode and performs no backend fetch in that mode.
+- Next step: complete local backend checks, then prepare a separate backend hosting plan.

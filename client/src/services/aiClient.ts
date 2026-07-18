@@ -1,7 +1,9 @@
+import { AI_CONNECTION_MODE } from "./aiStatus";
+
 export type AIActorRole = "npc" | "companion" | "dm" | "system";
 
 export type AIMessage = {
-  role: AIActorRole;
+  role: AIActorRole | "player";
   content: string;
 };
 
@@ -20,9 +22,11 @@ export type AIDialogueResponse = {
   actorName: string;
   text: string;
   isMock: boolean;
+  source?: "frontend-mock" | "backend-mock";
 };
 
 const MOCK_DELAY_MS = 180;
+const AI_BACKEND_URL = "/api/ai/dialogue";
 
 function getMockText(request: AIDialogueRequest) {
   const isEnglish = request.gameContext?.language === "en";
@@ -44,7 +48,7 @@ function getMockText(request: AIDialogueRequest) {
     : "Персонаж смотрит на тебя, словно подбирает слова. Настоящий AI dialogue ещё не подключён, но эта сцена уже готова принять его.";
 }
 
-export async function requestAIDialogue(request: AIDialogueRequest): Promise<AIDialogueResponse> {
+async function requestMockDialogue(request: AIDialogueRequest): Promise<AIDialogueResponse> {
   await new Promise<void>((resolve) => {
     globalThis.setTimeout(resolve, MOCK_DELAY_MS);
   });
@@ -54,5 +58,53 @@ export async function requestAIDialogue(request: AIDialogueRequest): Promise<AID
     actorName: request.actorName,
     text: getMockText(request),
     isMock: true,
+    source: "frontend-mock",
   };
+}
+
+function isDialogueResponse(value: unknown): value is AIDialogueResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const response = value as Partial<AIDialogueResponse>;
+  return (
+    typeof response.actorId === "string" &&
+    typeof response.actorName === "string" &&
+    typeof response.text === "string" &&
+    typeof response.isMock === "boolean"
+  );
+}
+
+async function requestBackendDialogue(request: AIDialogueRequest) {
+  const response = await fetch(AI_BACKEND_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Backend dialogue request failed with status ${response.status}`);
+  }
+
+  const result: unknown = await response.json();
+  if (!isDialogueResponse(result)) {
+    throw new Error("Backend dialogue response has an invalid shape");
+  }
+
+  return result;
+}
+
+export async function requestAIDialogue(request: AIDialogueRequest): Promise<AIDialogueResponse> {
+  if (AI_CONNECTION_MODE === "backend") {
+    try {
+      return await requestBackendDialogue(request);
+    } catch (error) {
+      console.warn("AI backend is unavailable; using the frontend mock response.", error);
+    }
+  }
+
+  return requestMockDialogue(request);
 }

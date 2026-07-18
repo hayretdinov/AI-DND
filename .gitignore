@@ -3,6 +3,8 @@ dist/
 build/
 .env
 .env.local
+server/.env
+server/.env.local
 logs/
 *.log
 .vscode/

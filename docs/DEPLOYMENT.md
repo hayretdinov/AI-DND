@@ -1,5 +1,13 @@
 # AI-DND Deployment Guide
 
+## Backend Deployment Status
+
+- Frontend опубликован на Vercel: https://ai-dnd-blue.vercel.app
+- Локальная заготовка backend AI proxy находится в `server/`.
+- Backend пока не опубликован и недоступен через публичный frontend.
+- Публичный frontend по умолчанию продолжает использовать безопасный mock AI mode.
+- Для настоящего backend AI потребуется отдельный hosting и защищённая серверная конфигурация.
+
 ## Production URL
 
 Primary test URL:
