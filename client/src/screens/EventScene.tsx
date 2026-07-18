@@ -5,6 +5,7 @@ import {
 } from "../components/MagicGuideAccess";
 import { SceneDialoguePanel, type SceneDialogueMessage } from "../components/SceneDialoguePanel";
 import { TopStatusBar, type TopStatusIndicatorData } from "../components/TopStatusHud";
+import { MobileEventLayout, type MobileQuickReply } from "../components/mobile/MobileEventLayout";
 import {
   appendDialogueMessages,
   appendAnarielMessage,
@@ -1059,6 +1060,9 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const [draggedTradeItem, setDraggedTradeItem] = useState<DraggedTradeItem | null>(null);
   const [tradeMode, setTradeMode] = useState<TradeMode>("buy");
   const [openGuideId, setOpenGuideId] = useState<ContextGuideId | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
+  );
   const hasRequestedInitialIntroGreeting = useRef(false);
   const currentChatSave = chatSave ?? loadedSave;
   const showAnarielCompanionPanel = isAnarielActiveCompanion(currentChatSave);
@@ -1169,6 +1173,15 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const visibleTradeTitle = tradeMode === "buy" ? t("merchant.ui.merchantInventory") : t("merchant.ui.playerInventory");
   const visibleTradeGold = tradeMode === "buy" ? merchantState?.gold ?? 0 : playerGold;
   const visibleTradeEmptyKey: TranslationKey = tradeMode === "buy" ? "merchant.ui.noMerchantGoods" : "merchant.ui.noSellableItems";
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const updateMobileViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    updateMobileViewport();
+    mediaQuery.addEventListener("change", updateMobileViewport);
+    return () => mediaQuery.removeEventListener("change", updateMobileViewport);
+  }, []);
 
   useEffect(() => {
     if (openGuideId && !getContextGuideItem(currentChatSave, openGuideId)) {
@@ -2186,8 +2199,8 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     setEventResultKey(key);
   };
 
-  const handleSendAnarielMessage = async () => {
-    const playerText = anarielChatInput.trim();
+  const handleSendAnarielMessage = async (messageOverride?: string) => {
+    const playerText = (messageOverride ?? anarielChatInput).trim();
     const sourceSave = currentChatSave;
     const sourceAnariel = sourceSave?.companions?.anariel;
 
@@ -2295,8 +2308,8 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     setIsAnarielThinking(false);
   };
 
-  const handleSendNpcMessage = async () => {
-    const playerText = npcChatInput.trim();
+  const handleSendNpcMessage = async (messageOverride?: string) => {
+    const playerText = (messageOverride ?? npcChatInput).trim();
     const sourceSave = currentChatSave;
 
     if (!playerText || !sourceSave || !activeNpc || !npcState || isNpcThinking) {
@@ -3017,6 +3030,280 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       }
     }
   };
+
+  const mobileLabels = {
+    dialogue: t("mobile.dialogue"),
+    inventory: t("mobile.inventory"),
+    map: t("mobile.map"),
+    journal: t("mobile.journal"),
+    menu: t("mobile.menu"),
+    npcInfo: t("mobile.npcInfo"),
+    dialogueHistory: t("mobile.dialogueHistory"),
+    moreReplies: t("mobile.moreReplies"),
+    hideReplies: t("mobile.hideReplies"),
+    showReplies: t("mobile.showReplies"),
+    writeMessage: t("mobile.writeMessage"),
+    sendMessage: t("mobile.sendMessage"),
+    close: t("mobile.close"),
+    relationship: t("mobile.relationship"),
+    role: t("mobile.role"),
+    about: t("mobile.about"),
+    relationshipHistory: t("mobile.relationshipHistory"),
+    activeEffects: t("mobile.activeEffects"),
+    backendWaiting: t("mobile.backendWaiting"),
+    you: t("mobile.you"),
+    day: t("mobile.day"),
+    hour: t("mobile.hour"),
+    gold: t("mobile.gold"),
+    weight: t("mobile.weight"),
+  };
+
+  const openMobileMap = () => {
+    if (currentChatSave?.activeEvent?.returnTo === "cityMap") {
+      onOpenCityMap();
+      return;
+    }
+    if (currentChatSave?.activeEvent?.returnTo === "swampMap") {
+      onOpenSwampMap();
+      return;
+    }
+    onOpenWorldMap();
+  };
+
+  const mobileNpcActions = activeNpc ? (
+    <>
+      {isPlayerDefeated ? (
+        <button
+          className="merchant-confirm-button"
+          type="button"
+          onClick={() => {
+            if (currentChatSave && npcState) {
+              appendPostCombatGameMaster(currentChatSave, npcState, t("postCombat.leaveButton"), "postCombat.leave", {}, "exit");
+              window.setTimeout(returnToWorldMap, 250);
+            }
+          }}
+        >
+          {t("postCombat.leaveButton")}
+        </button>
+      ) : null}
+      {isPlayerDead ? (
+        <button className="merchant-refuse-button" type="button" onClick={onBackToMenu}>
+          {t("gameOver.newGameOnly")}
+        </button>
+      ) : null}
+      {isMerchantScene && merchantCanConfirmDeal ? (
+        <>
+          <button className="merchant-confirm-button merchant-confirm-trade" type="button" onClick={handleConfirmMerchantDeal}>
+            {t("merchant.confirmTrade")}
+          </button>
+          <button className="merchant-refuse-button merchant-decline-trade" type="button" onClick={handleRefuseMerchantDeal}>
+            {t("merchant.decline")}
+          </button>
+        </>
+      ) : null}
+      {shouldShowTrainerActions ? (
+        <button className="merchant-confirm-button" type="button" onClick={handleTrainerTraining} disabled={!trainerCanTrain}>
+          {trainerStatus.nextTier
+            ? `${t("trainer.action.train")} - ${t(`trainer.tier.${trainerStatus.nextTier}` as TranslationKey)}`
+            : t("trainer.action.noTraining")}
+        </button>
+      ) : null}
+      {shouldShowBlacksmithActions ? (
+        <div className="smithing-mini-game" aria-label={t("smithing.ui.title")}>
+          <strong>{t("smithing.ui.title")}</strong>
+          {!smithingStatus.hasBasicTraining ? (
+            <button className="merchant-confirm-button" type="button" onClick={handleBlacksmithTraining}>{t("smithing.action.train")}</button>
+          ) : smithingJob ? (
+            <>
+              <meter min={0} max={smithingStageGoal} value={smithingJob.progress}>{smithingJob.progress}/{smithingStageGoal}</meter>
+              <button className="merchant-confirm-button" type="button" onClick={handleSmithingClick}>
+                {t(`smithing.action.${smithingJob.stage}` as TranslationKey)}
+              </button>
+            </>
+          ) : (
+            <button className="merchant-confirm-button" type="button" onClick={handleStartSmithingJob}>{t("smithing.action.start")}</button>
+          )}
+        </div>
+      ) : null}
+    </>
+  ) : null;
+
+  const mobileMerchantContent = isMerchantScene && merchantState ? (
+    <section className="mobile-merchant-trade" aria-label={t("merchant.ui.tradePanel")}>
+      <div className="mobile-merchant-trade__tabs" role="tablist" aria-label={t("merchant.ui.tradeTabs")}>
+        <button type="button" role="tab" aria-selected={tradeMode === "buy"} onClick={() => handleChangeTradeMode("buy")}>{t("merchant.tab.buy")}</button>
+        <button type="button" role="tab" aria-selected={tradeMode === "sell"} onClick={() => handleChangeTradeMode("sell")}>{t("merchant.tab.sell")}</button>
+      </div>
+      {activeMerchantDeal && activeMerchantDealItem ? (
+        <div className="mobile-merchant-trade__deal">
+          <strong>{getItemLabel(activeMerchantDealItem)}</strong>
+          <span>{formatApproximateMerchantPrice(activeMerchantDeal.merchantOffer)}</span>
+          <small>{t(`merchant.dealState.${activeMerchantDeal.dealState}` as TranslationKey)}</small>
+        </div>
+      ) : null}
+      <div className="mobile-merchant-trade__items">
+        {visibleTradeItems.length > 0 ? visibleTradeItems.map((item) => (
+          <button
+            className={activeMerchantDeal?.side === visibleTradeSide && activeMerchantDeal.itemInstanceId === item.id ? "mobile-merchant-item mobile-merchant-item--selected" : "mobile-merchant-item"}
+            key={item.id}
+            type="button"
+            onClick={() => handleSelectTradeItem(visibleTradeSide, item.id)}
+            disabled={tradeMode === "sell" && Boolean(item.isQuestItem || item.questItem)}
+          >
+            <span className="mobile-merchant-item__icon" aria-hidden="true">
+              {item.iconUrl ? <img src={item.iconUrl} alt="" /> : getItemIconLabel(item)}
+            </span>
+            <span><strong>{getItemLabel(item)}</strong><small>{formatTemplate("merchant.ui.itemMetaDetailed", { quantity: item.quantity, value: item.value, weight: item.weight })}</small></span>
+          </button>
+        )) : <p>{t(visibleTradeEmptyKey)}</p>}
+      </div>
+    </section>
+  ) : null;
+
+  if (isMobileViewport && dynamicEvent?.type === "necropolis") {
+    return (
+      <MobileEventLayout
+        labels={mobileLabels}
+        backgroundUrl={sceneAssetDefinition?.backgroundUrl ?? dynamicEvent.backgroundImage}
+        npcName={t(dynamicEvent.titleKey)}
+        npcRole={t(dynamicEvent.locationTitleKey)}
+        npcDescription={t(dynamicEvent.descriptionKey)}
+        messages={[]}
+        latestReply={eventResultKey ? t(eventResultKey) : t(dynamicEvent.descriptionKey)}
+        quickReplies={[]}
+        value=""
+        onChange={() => undefined}
+        onSend={() => undefined}
+        isThinking={false}
+        readOnly
+        day={currentChatSave?.currentDay ?? 1}
+        hour={currentChatSave?.currentHour ?? 6}
+        gold={playerGold}
+        weight={playerWeight.toFixed(1)}
+        maxWeight={playerMaxWeight.toFixed(1)}
+        onOpenInventory={() => onOpenInventory("eventScene")}
+        onOpenMap={openMobileMap}
+        onOpenJournal={onOpenJournal}
+        onOpenMenu={onOpenSettings}
+      />
+    );
+  }
+
+  if (isMobileViewport && dynamicEvent && activeNpc) {
+    const latestNpcReply = [...npcSceneMessages].reverse().find((message) => message.speaker !== "player")?.text
+      ?? (eventResultKey ? t(eventResultKey) : t(activeNpc.greetingKey));
+    const quickReplies: MobileQuickReply[] = combatThoughtHints.length > 0
+      ? combatThoughtHints.slice(0, 4).map((hint) => {
+        const label = hint.exampleKey
+          ? t(hint.exampleKey as TranslationKey)
+          : hint.exampleCommand ?? t(hint.textKey as TranslationKey);
+        return {
+          id: hint.id,
+          label,
+          onSelect: () => handleSendNpcMessage(label),
+          disabled: combatInputPolicy.disabled || combatInputPolicy.readOnly || isNpcThinking,
+        };
+      })
+      : [t("mobile.quickAsk"), t("mobile.quickObserve"), t("mobile.quickHelp")].map((label, index) => ({
+        id: `npc-mobile-reply-${index}`,
+        label,
+        onSelect: () => handleSendNpcMessage(label),
+        disabled: combatInputPolicy.disabled || combatInputPolicy.readOnly || isNpcThinking,
+      }));
+    const mobileLootContent = renderNpcLootPanel();
+    const hasMobileNpcActions = isPlayerDefeated
+      || isPlayerDead
+      || (isMerchantScene && merchantCanConfirmDeal)
+      || shouldShowTrainerActions
+      || shouldShowBlacksmithActions;
+
+    return (
+      <MobileEventLayout
+        labels={mobileLabels}
+        backgroundUrl={sceneAssetDefinition?.backgroundUrl ?? dynamicEvent.backgroundImage}
+        portraitUrl={activeNpc.portraitUrl ?? speakerImage}
+        npcName={t(activeNpc.nameKey)}
+        npcRole={t(getNpcMoodKey(activeNpc))}
+        relationship={npcState?.relationship ?? 0}
+        npcDescription={t(dynamicEvent.descriptionKey)}
+        relationshipSummary={npcChatNotice || t(activeNpc.greetingKey)}
+        npcStats={npcState ? [
+          { label: t("companion.relationship.trust"), value: npcState.trust },
+          { label: t("companion.relationship.fear"), value: npcState.fear },
+          { label: t("companion.relationship.respect"), value: npcState.hostility },
+        ] : []}
+        messages={npcSceneMessages}
+        latestReply={latestNpcReply}
+        quickReplies={quickReplies}
+        value={npcChatInput}
+        onChange={setNpcChatInput}
+        onSend={handleSendNpcMessage}
+        isThinking={isNpcThinking}
+        notice={npcChatNotice || rewardToast || aiMockNotice}
+        disabled={combatInputPolicy.disabled}
+        readOnly={combatInputPolicy.readOnly}
+        day={currentChatSave?.currentDay ?? 1}
+        hour={currentChatSave?.currentHour ?? 6}
+        gold={playerGold}
+        weight={playerWeight.toFixed(1)}
+        maxWeight={playerMaxWeight.toFixed(1)}
+        statusContent={npcState?.combat ? <p>{formatHealthStatus(t(activeNpc.nameKey), npcState.combat.currentHealth, npcState.combat.maxHealth)}</p> : null}
+        sceneContent={mobileMerchantContent || mobileLootContent ? <>{mobileMerchantContent}{mobileLootContent}</> : null}
+        actionContent={hasMobileNpcActions ? mobileNpcActions : null}
+        onOpenInventory={() => onOpenInventory(isMerchantScene ? "merchantScene" : "eventScene")}
+        onOpenMap={openMobileMap}
+        onOpenJournal={onOpenJournal}
+        onOpenMenu={onOpenSettings}
+      />
+    );
+  }
+
+  if (isMobileViewport && isAnarielIntroEvent) {
+    const introChoices = (isStandingStep ? introEvent.standingChoices : introEvent.choices) ?? [];
+    const latestAnarielReply = [...anarielSceneMessages].reverse().find((message) => message.speaker !== "player")?.text
+      ?? (isStandingStep ? t(introEvent.dialogueStandingLineKey) : t("event.anarielIntro.aiInitialFallback1"));
+    const quickReplies: MobileQuickReply[] = introChoices.map((choice) => ({
+      id: choice.id,
+      label: t(choice.labelKey),
+      onSelect: () => chooseAction(choice.action),
+    }));
+
+    return (
+      <MobileEventLayout
+        labels={mobileLabels}
+        backgroundUrl={introEvent.backgroundImage}
+        portraitUrl={anarielPortraitImage}
+        npcName={t("companion.anariel.name")}
+        npcRole={t("event.anarielIntro.speakerRole")}
+        relationship={activeAnarielState?.relationship ?? 0}
+        npcDescription={t("event.anarielIntro.sceneHint")}
+        relationshipSummary={activeAnarielState?.lastDialogueSummary}
+        npcStats={activeAnarielState ? [
+          { label: t("companion.relationship.trust"), value: activeAnarielState.trust },
+          { label: t("companion.relationship.fear"), value: activeAnarielState.fear },
+          { label: t("companion.relationship.respect"), value: activeAnarielState.respect },
+        ] : []}
+        messages={anarielSceneMessages}
+        latestReply={latestAnarielReply}
+        quickReplies={quickReplies}
+        value={anarielChatInput}
+        onChange={setAnarielChatInput}
+        onSend={handleSendAnarielMessage}
+        isThinking={isAnarielThinking}
+        notice={anarielChatNotice || rewardToast || aiMockNotice}
+        day={currentChatSave?.currentDay ?? 1}
+        hour={currentChatSave?.currentHour ?? 6}
+        gold={playerGold}
+        weight={playerWeight.toFixed(1)}
+        maxWeight={playerMaxWeight.toFixed(1)}
+        statusContent={<p>{formatHealthStatus(t("health.player"), currentChatSave?.player.combat?.currentHealth, currentChatSave?.player.combat?.maxHealth)}</p>}
+        onOpenInventory={() => onOpenInventory("eventScene")}
+        onOpenMap={openMobileMap}
+        onOpenJournal={onOpenJournal}
+        onOpenMenu={onOpenSettings}
+      />
+    );
+  }
 
   if (dynamicEvent?.type === "necropolis") {
     return (
