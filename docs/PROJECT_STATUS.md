@@ -1080,3 +1080,15 @@ Update date: 2026-07-17
 - Shove and grapple use deterministic resolution without normal weapon damage; grapple can apply a short text-combat status.
 - Explicit magic casting still routes before ranged and melee combat, preserving `Игнис Ланца Хостис`.
 - Build passes with `npm.cmd run build` from `client/`.
+
+## Pre-deployment audit
+
+Update date: 2026-07-18
+
+- Verified the expected project and frontend structure, localization, save system, and standalone prototype isolation.
+- Checked the repository for environment files, private-key files, and common secret signatures; none were found.
+- `npm.cmd install` completed successfully in `client/` and reported 3 dependency vulnerabilities (2 moderate, 1 high).
+- `npm.cmd run build` completed successfully and generated `client/dist`.
+- The development server started successfully for a short check and was stopped afterward.
+- Current status: `READY_FOR_DEPLOYMENT_PREPARATION`.
+- Full report: `docs/PROJECT_AUDIT.md`.

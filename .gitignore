@@ -3,5 +3,7 @@ dist/
 build/
 .env
 .env.local
+logs/
+*.log
 .vscode/
 .DS_Store
