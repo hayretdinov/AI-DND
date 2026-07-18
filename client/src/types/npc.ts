@@ -1,6 +1,9 @@
 import type { TranslationKey } from "../i18n/i18n";
 import type { WorldMapNodeId } from "../data/worldMap";
 import type { NpcCombatState } from "./combat";
+import type { NpcTextCombatState } from "../systems/combat/text/combatTextTypes";
+import type { InventoryItem } from "./inventory";
+import type { NpcLearnedKnowledge } from "../systems/lore/loreTypes";
 
 export type NpcRole =
   | "guard"
@@ -15,13 +18,24 @@ export type NpcRole =
   | "military"
   | "noble"
   | "scholar"
-  | "blacksmith";
+  | "blacksmith"
+  | "trainer";
 export type NpcMood = "neutral" | "hostile" | "afraid" | "friendly";
-export type NpcStatus = "alive" | "dead" | "escaped" | "gone" | "missing" | "imprisoned" | "exiled";
+export type NpcStatus =
+  | "alive"
+  | "defeated"
+  | "unconscious"
+  | "surrendered"
+  | "dead"
+  | "escaped"
+  | "gone"
+  | "missing"
+  | "imprisoned"
+  | "exiled";
 
 export type NpcDialogueMessage = {
   id: string;
-  speaker: "player" | "npc";
+  speaker: "player" | "npc" | "game_master" | "combat" | "system";
   text: string;
   createdAt: string;
 };
@@ -54,6 +68,29 @@ export type NpcRuntimeState = {
   fear: number;
   hostility: number;
   dialogueHistory: NpcDialogueMessage[];
+  learnedKnowledge?: NpcLearnedKnowledge[];
+  postCombatMemory?: NpcPostCombatMemory;
+  loot?: NpcLootState;
+};
+
+export type NpcPostCombatMemory = {
+  lastOutcome?: "playerDefeated" | "npcDefeatedAlive" | "enemyDead" | "monsterDefeated";
+  defeatedBy?: string;
+  defeatedPlayer?: boolean;
+  wasSpared?: boolean;
+  wasExecuted?: boolean;
+  wasLooted?: boolean;
+  demandedItemIds?: string[];
+  surrenderedItemIds?: string[];
+  updatedAt?: string;
+};
+
+export type NpcLootState = {
+  generated: boolean;
+  searched: boolean;
+  items: InventoryItem[];
+  gold: number;
+  generatedAt?: string;
 };
 
 export type NpcInstance = NpcRuntimeState & {
@@ -68,4 +105,5 @@ export type NpcInstance = NpcRuntimeState & {
     toId: WorldMapNodeId;
   };
   combat?: NpcCombatState;
+  textCombat?: NpcTextCombatState;
 };

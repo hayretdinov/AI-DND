@@ -21,7 +21,7 @@ export type CityState = {
 };
 
 export type NavigationReturnContext = {
-  screen: "eventScene" | "merchantScene" | "cityMap";
+  screen: "eventScene" | "merchantScene" | "cityMap" | "swampMap";
   cityId?: CityId;
   locationId?: string;
   npcInstanceId?: string;

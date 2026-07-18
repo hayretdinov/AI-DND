@@ -6,9 +6,10 @@ export type ActiveEventContext = {
   npcId?: string;
   npcTemplateId?: string;
   npcInstanceId?: string;
-  returnTo: "worldMap" | "cityMap";
+  returnTo: "worldMap" | "cityMap" | "swampMap";
   cityId?: string;
   cityLocationId?: string;
+  swampLocationId?: string;
   pendingTravelTargetId?: WorldMapNodeId;
   resumeTravelAfterEvent?: boolean;
 };
@@ -43,4 +44,5 @@ export type TravelEventDefinition = {
   backgroundImage: string;
   npcId: string;
   type: "bandit" | "beast";
+  weight?: number;
 };

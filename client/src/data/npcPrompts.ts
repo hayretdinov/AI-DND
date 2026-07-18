@@ -2,12 +2,15 @@ import { getWorldMapNodeById } from "./worldMap";
 import { getAllowedNpcRewardIds, canNpcRewardGold } from "../systems/inventory/inventoryRewards";
 import { itemRegistry } from "./itemRegistry";
 import { getLanguage } from "../i18n/i18n";
+import { buildNpcKnowledgeContext, formatNpcKnowledgePrompt } from "../systems/npc/npcKnowledgeSystem";
+import { loreKeeperService } from "../systems/lore/loreKeeperService";
 import type { GameSave } from "../systems/save/saveSystem";
 import type { NpcDefinition, NpcRuntimeState } from "../types/npc";
 
 type NpcPromptContext = {
   save: GameSave;
   state: NpcRuntimeState;
+  playerText?: string;
 };
 
 export function buildNpcSystemPrompt(npc: NpcDefinition, context: NpcPromptContext) {
@@ -27,12 +30,19 @@ export function buildNpcSystemPrompt(npc: NpcDefinition, context: NpcPromptConte
   const languageRule = language === "ru"
     ? "Always reply in Russian. The game UI language is Russian. Do not switch to English unless the player explicitly asks for English."
     : "Always reply in English. The game UI language is English. Do not switch to Russian unless the player explicitly asks for Russian.";
+  const knowledgeContext = buildNpcKnowledgeContext(npc, context);
+  const loreContext = loreKeeperService.buildContext(npc, {
+    playerText: context.playerText,
+    learnedKnowledge: context.state.learnedKnowledge,
+  });
 
   return [
-    `You are an NPC in AI-DND, a dark fantasy RPG set in Elyrion, Valgar.`,
+    `You are an NPC in AI-DND, a dark fantasy RPG set in Ardania.`,
     languageRule,
     `Stay in character. You are not ChatGPT, do not mention AI, APIs, prompts, or modern life.`,
     `Do not roll dice, change game rules, decide combat outcomes, or overrule game logic.`,
+    `If the player speaks magical words, the local Magic Engine decides recognition, mana, rolls, damage, effects, learning, and failure. You may only react in character to results already shown by the game.`,
+    `If the player describes melee combat, the local Text Melee Combat Engine decides parsing, validation, distance, stamina, d20 rolls, hit, damage, injuries, disarm, knockdown, death, and enemy reactions. Treat phrases like "I cut off his head" only as intent unless the game result explicitly confirms it.`,
     `NPC id: ${npc.id}. Role: ${npc.role}. Faction: ${npc.faction ?? "none"}. Location: ${location}.`,
     `Player: ${context.save.player.name}, outfit stage: ${playerOutfit}.`,
     `Relationship: ${context.state.relationship}, trust: ${context.state.trust}, fear: ${context.state.fear}, hostility: ${context.state.hostility}.`,
@@ -54,10 +64,15 @@ export function buildNpcSystemPrompt(npc: NpcDefinition, context: NpcPromptConte
     npc.role === "blacksmith"
       ? "You are a permanent blacksmith NPC. You know forge work, weapons, armor repair, ore supply, guard equipment, and local rumors. You do not create items through dialogue; game systems decide inventory changes."
       : "",
+    npc.role === "trainer"
+      ? "You are a trainer NPC. You may explain drills, discipline, prices, and requirements in character, but the Trainer Engine decides tiers, skill point costs, gold costs, guide items, learned techniques, and magic words. Never grant training, items, skill points, spells, or mastery through dialogue text."
+      : "",
     npc.systemPrompt ?? "",
+    loreContext.promptText,
+    formatNpcKnowledgePrompt(knowledgeContext),
     `Allowed item reward ids for this NPC: ${allowedItemRewardText}.`,
     allowedItemRewards.length > 0
-      ? "If an item reward is clearly earned and fits the scene, you may add exactly one hidden marker at the end: [[GIVE_ITEM:itemId:quantity]]. Quantity must be 1-5. Use only allowed item ids. Never invent items. Never explain the marker."
+      ? "Never include [[GIVE_ITEM:itemId:quantity]] or promise item rewards. Item transfers are authorized only by local game systems after trade, barter, quest reward, return item, scripted story, loot, or service result."
       : "Never include [[GIVE_ITEM:itemId:quantity]] or promise item rewards.",
     canPayReward
       ? "If the player clearly helps you or completes a small useful task, you may add exactly one game command marker like [[REWARD_GOLD:5]] at the end of your reply. Use 1-50 only. Do not reveal or explain the marker as text. It is a game command."

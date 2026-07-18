@@ -1,15 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ReadableImageViewer } from "../components/MagicGuideAccess";
 import { createDefaultInventoryState } from "../data/inventoryMockData";
+import { getAnarielImageForCurrentState, ANARIEL_TRAVEL_RAGS_IMAGE } from "../data/companions/anarielVisuals";
+import { validateItemAssetPaths } from "../data/itemRegistry";
+import { getPlayerPortraitUrlForOutfit } from "../data/playerVisuals";
 import { WEAPON_TRAINING_ORDER } from "../data/trainingData";
 import { t, type TranslationKey } from "../i18n/i18n";
+import { getMagicWordById, getSpellDefinitionById } from "../systems/magic";
+import { getReadableImageAsset } from "../systems/inventory/readableItems";
 import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
+import { recalculatePlayerDefense } from "../systems/player/playerProgressionSystem";
 import type { WeaponType } from "../types/combat";
 import type { EquipmentSlot, InventoryCategory, InventoryItem, InventoryState } from "../types/inventory";
 import type { PlayerCharacter } from "../types/player";
 
 type InventoryProps = {
-  onBackToMenu: () => void;
+  onClose: () => void;
   onOpenMap: () => void;
+  onOpenJournal: () => void;
+  onOpenSettings: () => void;
 };
 
 type InventorySort = "recent" | "name" | "weight" | "value" | "quantity" | "rarity";
@@ -82,21 +91,16 @@ const weaponTypeLabelKeys: Record<WeaponType, TranslationKey> = {
   axe: "weapon.axe",
   mace: "weapon.mace",
   club: "weapon.club",
+  spear: "weapon.spear",
   bow: "weapon.bow",
+  shortBow: "weapon.shortBow",
+  longBow: "weapon.longBow",
+  handCrossbow: "weapon.handCrossbow",
+  lightCrossbow: "weapon.lightCrossbow",
+  huntingCrossbow: "weapon.huntingCrossbow",
+  heavyCrossbow: "weapon.heavyCrossbow",
   staff: "weapon.staff",
   unarmed: "weapon.unarmed",
-};
-
-const ANARIEL_INVENTORY_FALLBACK_IMAGE =
-  "/assets/companions/anariel/anariel_travel_rags.png";
-
-const ANARIEL_INVENTORY_IMAGE_BY_OUTFIT_STAGE: Record<
-  NonNullable<PlayerCharacter["currentOutfitStage"]>,
-  string
-> = {
-  rags: ANARIEL_INVENTORY_FALLBACK_IMAGE,
-  clothes: "/assets/companions/anariel/anariel_travel_clothes.png",
-  armor: "/assets/companions/anariel/anariel_travel_armor.png",
 };
 
 function translate(key: string) {
@@ -257,16 +261,14 @@ function shouldShowAnarielCompanion(save: GameSave | null) {
 }
 
 function getAnarielInventoryImage(save: GameSave | null) {
-  const outfitStage = save?.player.currentOutfitStage ?? "rags";
-
-  return ANARIEL_INVENTORY_IMAGE_BY_OUTFIT_STAGE[outfitStage] ?? ANARIEL_INVENTORY_FALLBACK_IMAGE;
+  return getAnarielImageForCurrentState(save);
 }
 
 function canUseInventoryItem(item: InventoryItem | null) {
-  return Boolean(item?.canUse || item?.effectType);
+  return Boolean(item?.readable || item?.canUse || item?.effectType);
 }
 
-export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
+export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }: InventoryProps) {
   const loadedSave = loadGame();
   const [currentSave, setCurrentSave] = useState<GameSave | null>(loadedSave);
   const [inventory, setInventory] = useState<InventoryState>(() => loadedSave?.inventory ?? createDefaultInventoryState());
@@ -281,6 +283,7 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
   const [inventoryMessage, setInventoryMessage] = useState("");
+  const [readableItem, setReadableItem] = useState<InventoryItem | null>(null);
 
   const equippedItemIds = useMemo(() => new Set(Object.values(equipment).filter(Boolean)), [equipment]);
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
@@ -328,12 +331,35 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   const showAnariel = shouldShowAnarielCompanion(currentSave);
   const anarielInventoryImage = getAnarielInventoryImage(currentSave);
   const training = player?.training;
+  const magic = player?.magic;
+  const knownMagicWords = magic?.knownWords
+    .map((knownWord) => ({ knownWord, word: getMagicWordById(knownWord.wordId) }))
+    .filter((entry): entry is { knownWord: NonNullable<typeof magic>["knownWords"][number]; word: NonNullable<ReturnType<typeof getMagicWordById>> } => Boolean(entry.word))
+    .slice(0, 8) ?? [];
+  const knownMagicFormulas = magic?.knownSpellFormulas
+    .map((knownFormula) => ({ knownFormula, spell: getSpellDefinitionById(knownFormula.spellId) }))
+    .filter((entry): entry is { knownFormula: NonNullable<typeof magic>["knownSpellFormulas"][number]; spell: NonNullable<ReturnType<typeof getSpellDefinitionById>> } => Boolean(entry.spell))
+    .slice(0, 5) ?? [];
+
+  useEffect(() => {
+    validateItemAssetPaths();
+  }, []);
+
+  useEffect(() => {
+    if (readableItem && !items.some((item) => item.id === readableItem.id && item.quantity > 0)) {
+      setReadableItem(null);
+    }
+  }, [items, readableItem]);
 
   const persistInventory = (nextInventory: InventoryState, messageKey?: TranslationKey) => {
     setInventory(nextInventory);
 
     if (currentSave) {
-      const nextSave = { ...currentSave, inventory: nextInventory };
+      const nextSave = {
+        ...currentSave,
+        inventory: nextInventory,
+        player: recalculatePlayerDefense(currentSave.player, nextInventory),
+      };
       saveGame(nextSave);
       setCurrentSave(nextSave);
     }
@@ -344,9 +370,16 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
   };
 
   const persistSaveState = (nextSave: GameSave, messageKey?: TranslationKey) => {
-    saveGame(nextSave);
-    setCurrentSave(nextSave);
-    setInventory(nextSave.inventory ?? createDefaultInventoryState());
+    const normalizedSave = nextSave.inventory
+      ? {
+          ...nextSave,
+          player: recalculatePlayerDefense(nextSave.player, nextSave.inventory),
+        }
+      : nextSave;
+
+    saveGame(normalizedSave);
+    setCurrentSave(normalizedSave);
+    setInventory(normalizedSave.inventory ?? createDefaultInventoryState());
 
     if (messageKey) {
       setInventoryMessage(t(messageKey));
@@ -379,6 +412,18 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
       return;
     }
 
+    if (selectedItem.readable && selectedItem.readContentType === "image") {
+      const asset = getReadableImageAsset(selectedItem);
+
+      if (!asset) {
+        setInventoryMessage(t("magicGuide.imageLoadError"));
+        return;
+      }
+
+      setReadableItem(selectedItem);
+      return;
+    }
+
     if (selectedItem.effectType === "readText" && selectedItem.templateId === "torn_note") {
       setInventoryMessage(t("inventoryUseTornNote"));
       return;
@@ -400,6 +445,30 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
     }
 
     if (selectedItem.effectType === "restoreMana") {
+      if (currentSave?.player.magic?.canUseMagic) {
+        const manaAmount = selectedItem.effectValue ?? 5;
+        const nextItems = items
+          .map((item) => (item.id === selectedItem.id ? { ...item, quantity: item.quantity - 1 } : item))
+          .filter((item) => item.quantity > 0);
+        const nextMagic = {
+          ...currentSave.player.magic,
+          mana: Math.min(currentSave.player.magic.maxMana, currentSave.player.magic.mana + manaAmount),
+        };
+
+        persistSaveState({
+          ...currentSave,
+          inventory: {
+            ...inventory,
+            items: nextItems,
+          },
+          player: {
+            ...currentSave.player,
+            magic: nextMagic,
+          },
+        }, "inventory.manaRestored");
+        return;
+      }
+
       setInventoryMessage(t("inventory.noMagicKnowledge"));
       return;
     }
@@ -465,16 +534,29 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
       return;
     }
 
+    for (const slotId of Object.keys(nextEquipment) as EquipmentSlot[]) {
+      if (nextEquipment[slotId] === selectedItem.id) {
+        delete nextEquipment[slotId];
+      }
+    }
+
     nextEquipment[selectedItem.slot] = selectedItem.id;
 
     if (selectedItem.outfitStageOnEquip && currentSave) {
+      const nextOutfitStage = selectedItem.outfitStageOnEquip;
+      const nextInventory = { ...inventory, equipment: nextEquipment };
+      const nextPlayer = {
+        ...currentSave.player,
+        currentOutfitStage: nextOutfitStage,
+        unlockedOutfitStages: Array.from(new Set([...(currentSave.player.unlockedOutfitStages ?? ["rags"]), nextOutfitStage])),
+      };
+
       persistSaveState({
         ...currentSave,
-        inventory: { ...inventory, equipment: nextEquipment },
+        inventory: nextInventory,
         player: {
-          ...currentSave.player,
-          currentOutfitStage: selectedItem.outfitStageOnEquip,
-          unlockedOutfitStages: Array.from(new Set([...(currentSave.player.unlockedOutfitStages ?? ["rags"]), selectedItem.outfitStageOnEquip])),
+          ...nextPlayer,
+          portraitUrl: getPlayerPortraitUrlForOutfit(nextPlayer, nextOutfitStage),
         },
       }, "inventoryItemEquipped");
       return;
@@ -496,22 +578,9 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
     updateItemQuantity(selectedItem.id, selectedItem.quantity - 1, "inventoryItemDropped");
   };
 
-  const handleDropAll = () => {
-    if (!selectedItem) {
-      return;
-    }
-
-    if (selectedItem.isQuestItem) {
-      setInventoryMessage(t("inventoryCannotDropQuestItem"));
-      return;
-    }
-
-    updateItemQuantity(selectedItem.id, 0, "inventoryItemDropped");
-  };
-
   return (
     <section className="inventory-screen" aria-labelledby="inventory-title">
-      <header className="inventory-top-nav">
+      <header className="inventory-top-nav inventory-top-nav--removed" aria-hidden="true">
         <h1 id="inventory-title" className="inventory-screen__title">
           {t("inventoryTitle")}
         </h1>
@@ -542,7 +611,7 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
           <button className="inventory-top-nav__icon-button" type="button" aria-label={t("journalTitle")}>
             ◈
           </button>
-          <button className="inventory-top-nav__icon-button" type="button" onClick={onBackToMenu} aria-label={t("backToMenu")}>
+          <button className="inventory-top-nav__icon-button" type="button" onClick={onClose} aria-label={t("backToMenu")}>
             ×
           </button>
         </div>
@@ -653,6 +722,46 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
               );
             })}
           </div>
+
+          <div className="magic-grimoire-panel">
+            <h3>{t("magic.grimoire.title")}</h3>
+            {magic?.grimoireUnlocked ? (
+              <>
+                <div className="magic-grimoire-meter">
+                  <span>{t("magic.ui.mana")}</span>
+                  <strong>{magic.mana} / {magic.maxMana}</strong>
+                </div>
+                <div className="magic-grimoire-section">
+                  <strong>{t("magic.grimoire.words")}</strong>
+                  {knownMagicWords.length > 0 ? (
+                    knownMagicWords.map(({ knownWord, word }) => (
+                      <div className="magic-grimoire-row" key={knownWord.wordId}>
+                        <span>{word.aliases[0] ?? word.word}</span>
+                        <small>{t(`magic.mastery.${knownWord.masteryLevel}` as TranslationKey)}</small>
+                      </div>
+                    ))
+                  ) : (
+                    <p>{t("magic.grimoire.unknownWord")}</p>
+                  )}
+                </div>
+                <div className="magic-grimoire-section">
+                  <strong>{t("magic.grimoire.formulas")}</strong>
+                  {knownMagicFormulas.length > 0 ? (
+                    knownMagicFormulas.map(({ knownFormula, spell }) => (
+                      <div className="magic-grimoire-row" key={knownFormula.id}>
+                        <span>{t(spell.nameKey as TranslationKey)}</span>
+                        <small>{spell.manaCost} {t("magic.ui.manaShort")}</small>
+                      </div>
+                    ))
+                  ) : (
+                    <p>{t("magic.grimoire.damagedPage")}</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p>{t("magic.grimoire.damagedPage")}</p>
+            )}
+          </div>
         </aside>
 
         <section className="inventory-center-panel" aria-label={t("inventoryCharacter")}>
@@ -676,9 +785,9 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
                       onError={(event) => {
                         if (
                           event.currentTarget.getAttribute("src") !==
-                          ANARIEL_INVENTORY_FALLBACK_IMAGE
+                          ANARIEL_TRAVEL_RAGS_IMAGE
                         ) {
-                          event.currentTarget.src = ANARIEL_INVENTORY_FALLBACK_IMAGE;
+                          event.currentTarget.src = ANARIEL_TRAVEL_RAGS_IMAGE;
                           return;
                         }
 
@@ -796,7 +905,19 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
                   onMouseLeave={() => setHoveredItemId(null)}
                 >
                   <span className="inventory-grid-item__quantity">{item.quantity}</span>
-                  <strong>{item.icon}</strong>
+                  <strong className="item-icon">
+                    {item.iconUrl ? (
+                      <img
+                        src={item.iconUrl}
+                        alt=""
+                        draggable={false}
+                        onError={(event) => {
+                          event.currentTarget.hidden = true;
+                        }}
+                      />
+                    ) : null}
+                    <span>{item.icon}</span>
+                  </strong>
                   <span>{translate(item.nameKey)}</span>
                 </button>
               );
@@ -904,6 +1025,17 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
                 {inventoryMessage ? (
                   <p className="inventory-action-availability">{inventoryMessage}</p>
                 ) : null}
+                <div className="inventory-item-action-row">
+                  <button className="inventory-action-button" type="button" onClick={handleUseItem} disabled={!canUseInventoryItem(selectedItem)}>
+                    {selectedItem?.readable ? t("inventory.actions.read") : t("inventoryUse")}
+                  </button>
+                  <button className="inventory-action-button" type="button" onClick={handleEquipItem} disabled={!selectedItem?.equippable}>
+                    {selectedItem && equippedItemIds.has(selectedItem.id) ? t("inventoryUnequip") : t("inventoryEquip")}
+                  </button>
+                  <button className="inventory-action-button inventory-action-button--danger" type="button" onClick={handleDropItem} disabled={!selectedItem || selectedItem.isQuestItem}>
+                    {t("inventoryDrop")}
+                  </button>
+                </div>
               </>
             ) : (
               <p>{t("inventorySelectItem")}</p>
@@ -927,21 +1059,27 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
                 <i style={{ width: `${weightRatio}%` }} />
               </div>
             </div>
-            <button className="inventory-action-button" type="button" onClick={handleUseItem} disabled={!canUseInventoryItem(selectedItem)}>
-              {t("inventoryUse")}
-            </button>
-            <button className="inventory-action-button" type="button" onClick={handleEquipItem} disabled={!selectedItem?.equippable}>
-              {selectedItem && equippedItemIds.has(selectedItem.id) ? t("inventoryUnequip") : t("inventoryEquip")}
-            </button>
-            <button className="inventory-action-button" type="button" onClick={handleDropItem} disabled={!selectedItem || selectedItem.isQuestItem}>
-              {t("inventoryDrop")}
-            </button>
-            <button className="inventory-action-button inventory-action-button--danger" type="button" onClick={handleDropAll} disabled={!selectedItem || selectedItem.isQuestItem}>
-              {t("inventoryDropAll")}
-            </button>
           </div>
         </aside>
       </div>
+      <nav className="merchant-bottom-navigation inventory-bottom-navigation" aria-label={t("city.navigation")}>
+        <button type="button" onClick={onClose} aria-label={t("event.ui.close")}>
+          <img src="/assets/world-map/ui/inventory_icon.png" alt="" />
+          <span>{t("inventoryTitle")}</span>
+        </button>
+        <button type="button" onClick={onOpenMap}>
+          <span aria-hidden="true">M</span>
+          <span>{t("inventoryMap")}</span>
+        </button>
+        <button type="button" onClick={onOpenJournal}>
+          <img src="/assets/world-map/ui/messages_icon.png" alt="" />
+          <span>{t("journalTitle")}</span>
+        </button>
+        <button type="button" onClick={onOpenSettings}>
+          <img src="/assets/world-map/ui/settings_icon.png" alt="" />
+          <span>{t("settingsTitle")}</span>
+        </button>
+      </nav>
       {hoveredItem ? (
         <div
           className={["inventory-tooltip", `inventory-rarity-${hoveredItem.rarity}`].join(" ")}
@@ -1017,6 +1155,7 @@ export function Inventory({ onBackToMenu, onOpenMap }: InventoryProps) {
           ) : null}
         </div>
       ) : null}
+      {readableItem ? <ReadableImageViewer item={readableItem} onClose={() => setReadableItem(null)} /> : null}
     </section>
   );
 }

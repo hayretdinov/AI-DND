@@ -1,5 +1,26 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { t, type TranslationKey } from "../i18n/i18n";
+import { createDefaultInventoryState } from "../data/inventoryMockData";
+import {
+  ATTRIBUTE_KEYS,
+  BASE_ATTRIBUTES,
+  STARTING_STAT_MAX,
+  STARTING_STAT_MIN,
+  calculateFinalAttributes,
+  createEmptyAttributeAllocation,
+  getRaceDefinition,
+  getSpentAttributePoints,
+  getStartingAttributePointTotal,
+  RACIAL_STATS_SCHEMA_VERSION,
+  type AttributeAllocation,
+} from "../data/raceDefinitions";
+import {
+  addUniqueInventoryItem,
+  CROSSBOW_AND_BOLTS_GUIDE_ITEM_ID,
+  MAGIC_APPRENTICE_GUIDE_ITEM_ID,
+  MELEE_COMBAT_BEGINNER_GUIDE_ITEM_ID,
+} from "../systems/inventory/readableItems";
+import { createDefaultMagicState } from "../systems/magic";
 import { saveGame } from "../systems/save/saveSystem";
 import type {
   Attributes,
@@ -81,14 +102,7 @@ const OUTFIT_STAGE_DESCRIPTION_KEYS: Record<PlayerOutfitStage, TranslationKey> =
   armor: "characterCreation.outfitArmorDescription",
 };
 
-const ATTRIBUTE_NAMES: Array<keyof Attributes> = [
-  "strength",
-  "constitution",
-  "dexterity",
-  "intelligence",
-  "wisdom",
-  "charisma",
-];
+const ATTRIBUTE_NAMES: Array<keyof Attributes> = ATTRIBUTE_KEYS;
 
 const ATTRIBUTE_META: Record<
   keyof Attributes,
@@ -120,13 +134,6 @@ const ATTRIBUTE_META: Record<
   },
 };
 
-const RACE_DESCRIPTION: Record<PlayerRace, string> = {
-  human: "Люди быстро приспосабливаются к дорогам, клятвам и любой войне, где нужно выжить.",
-  elf: "Эльфы слышат древний шёпот мира и видят путь там, где остальные замечают только тьму.",
-  dwarf: "Дворфы крепки, упрямы и помнят каждую обиду дольше, чем живут человеческие королевства.",
-  orc: "Орки выносливы, суровы и привыкли побеждать там, где слабые уже отступили.",
-};
-
 const CLASS_DESCRIPTION: Record<PlayerClass, string> = {
   warrior: "Воин держит строй, принимает удар и отвечает простой силой стали.",
   rogue: "Разбойник выбирает тень, быстрый удар и путь, который никто не охраняет.",
@@ -143,19 +150,6 @@ const EQUIPMENT_DESCRIPTION: Record<EquipmentChoice, string> = {
   rags: "Лёгкие лохмотья не защищают, но не мешают двигаться.",
   clothes: "Простая одежда путника, пережившая пыль, холод и дождь.",
   armor: "Грубый доспех даёт уверенность тем, кто ждёт первого удара.",
-};
-
-const BASE_ATTRIBUTE_VALUE = 8;
-const TOTAL_POINTS = 12;
-const MAX_ATTRIBUTE_VALUE = 16;
-
-const INITIAL_ATTRIBUTES: Attributes = {
-  strength: BASE_ATTRIBUTE_VALUE,
-  dexterity: BASE_ATTRIBUTE_VALUE,
-  constitution: BASE_ATTRIBUTE_VALUE,
-  intelligence: BASE_ATTRIBUTE_VALUE,
-  wisdom: BASE_ATTRIBUTE_VALUE,
-  charisma: BASE_ATTRIBUTE_VALUE,
 };
 
 const ORIGIN_BY_BACKGROUND: Record<BackgroundChoice, PlayerOrigin> = {
@@ -216,8 +210,13 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
   const [background, setBackground] = useState<BackgroundChoice>("outcast");
   const [previewOutfitStage, setPreviewOutfitStage] =
     useState<PlayerOutfitStage>(STARTING_OUTFIT_STAGE);
-  const [attributes, setAttributes] = useState<Attributes>(INITIAL_ATTRIBUTES);
+  const [allocatedAttributes, setAllocatedAttributes] = useState<AttributeAllocation>(() => createEmptyAttributeAllocation());
 
+  const selectedRaceDefinition = getRaceDefinition(race);
+  const attributes = useMemo(
+    () => calculateFinalAttributes(BASE_ATTRIBUTES, allocatedAttributes, race),
+    [allocatedAttributes, race],
+  );
   const derivedStats = useMemo(() => getDerivedStats(attributes), [attributes]);
   const trimmedCharacterName = characterName.trim();
   const isNameMissing = trimmedCharacterName.length === 0;
@@ -257,31 +256,26 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
     return () => window.clearTimeout(rotationTimer);
   }, [pendingStep]);
 
-  const spentPoints = ATTRIBUTE_NAMES.reduce(
-    (total, attribute) => total + attributes[attribute] - BASE_ATTRIBUTE_VALUE,
-    0,
-  );
-  const remainingPoints = TOTAL_POINTS - spentPoints;
+  const totalAttributePoints = getStartingAttributePointTotal(race);
+  const spentPoints = getSpentAttributePoints(allocatedAttributes);
+  const remainingPoints = totalAttributePoints - spentPoints;
 
   const changeAttribute = (attribute: keyof Attributes, direction: -1 | 1) => {
-    setAttributes((currentAttributes) => {
-      const currentValue = currentAttributes[attribute];
-      const currentSpentPoints = ATTRIBUTE_NAMES.reduce(
-        (total, currentAttribute) =>
-          total + currentAttributes[currentAttribute] - BASE_ATTRIBUTE_VALUE,
-        0,
-      );
+    setAllocatedAttributes((currentAllocation) => {
+      const currentValue = currentAllocation[attribute];
+      const currentSpentPoints = getSpentAttributePoints(currentAllocation);
+      const finalValue = BASE_ATTRIBUTES[attribute] + currentValue + selectedRaceDefinition.statModifiers[attribute];
 
       if (direction > 0) {
-        if (currentValue >= MAX_ATTRIBUTE_VALUE || currentSpentPoints >= TOTAL_POINTS) {
-          return currentAttributes;
+        if (finalValue >= STARTING_STAT_MAX || currentSpentPoints >= totalAttributePoints) {
+          return currentAllocation;
         }
-      } else if (currentValue <= BASE_ATTRIBUTE_VALUE) {
-        return currentAttributes;
+      } else if (currentValue <= 0 || finalValue <= STARTING_STAT_MIN) {
+        return currentAllocation;
       }
 
       return {
-        ...currentAttributes,
+        ...currentAllocation,
         [attribute]: currentValue + direction,
       };
     });
@@ -356,7 +350,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
     const startingOutfitStage = STARTING_OUTFIT_STAGE;
     const portraitUrl = getCharacterImage(race, gender, startingOutfitStage);
 
-    saveGame({
+    const nextSave = {
       player: {
         id: createCharacterId(),
         name: trimmedCharacterName,
@@ -368,11 +362,26 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         currentOutfitStage: startingOutfitStage,
         unlockedOutfitStages: [startingOutfitStage],
         portraitUrl,
+        baseAttributes: BASE_ATTRIBUTES,
+        allocatedAttributes,
+        racialModifiers: selectedRaceDefinition.statModifiers,
+        statsSchemaVersion: RACIAL_STATS_SCHEMA_VERSION,
         attributes,
         derivedStats,
+        magic: createDefaultMagicState(characterClass),
         createdAt: new Date().toISOString(),
       },
-    });
+      inventory: createDefaultInventoryState(),
+    };
+
+    const saveWithMeleeGuide = addUniqueInventoryItem(nextSave, MELEE_COMBAT_BEGINNER_GUIDE_ITEM_ID, "starting_character");
+    const saveWithCrossbowGuide = addUniqueInventoryItem(saveWithMeleeGuide, CROSSBOW_AND_BOLTS_GUIDE_ITEM_ID, "starting_character");
+    const saveWithClassGuides =
+      characterClass === "mage" || background === "mageApprentice"
+        ? addUniqueInventoryItem(saveWithCrossbowGuide, MAGIC_APPRENTICE_GUIDE_ITEM_ID, "starting_mage")
+        : saveWithCrossbowGuide;
+
+    saveGame(saveWithClassGuides);
 
     onStartJourney();
   };
@@ -498,7 +507,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                         className="creation-attribute-button"
                         type="button"
                         onClick={() => changeAttribute(attribute, -1)}
-                        disabled={attributes[attribute] <= BASE_ATTRIBUTE_VALUE}
+                        disabled={allocatedAttributes[attribute] <= 0 || attributes[attribute] <= STARTING_STAT_MIN}
                         aria-label={`Уменьшить ${ATTRIBUTE_META[attribute].label}`}
                       >
                         -
@@ -509,7 +518,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                         type="button"
                         onClick={() => changeAttribute(attribute, 1)}
                         disabled={
-                          attributes[attribute] >= MAX_ATTRIBUTE_VALUE || remainingPoints <= 0
+                          attributes[attribute] >= STARTING_STAT_MAX || remainingPoints <= 0
                         }
                         aria-label={`Увеличить ${ATTRIBUTE_META[attribute].label}`}
                       >
@@ -520,17 +529,21 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
                   <div className="creation-attribute-row__bar">
                     <span
                       style={{
-                        width: `${(attributes[attribute] / MAX_ATTRIBUTE_VALUE) * 100}%`,
+                        width: `${(attributes[attribute] / STARTING_STAT_MAX) * 100}%`,
                       }}
                     />
                   </div>
+                  <small className="creation-attribute-row__modifier">
+                    {t("characterCreation.racialModifier")}: {selectedRaceDefinition.statModifiers[attribute] >= 0 ? "+" : ""}
+                    {selectedRaceDefinition.statModifiers[attribute]}
+                  </small>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="creation-description">
-            <p>{RACE_DESCRIPTION[race]}</p>
+            <p>{t(selectedRaceDefinition.descriptionKey)}</p>
             <p>{CLASS_DESCRIPTION[characterClass]}</p>
             <p>{BACKGROUND_DESCRIPTION[background]}</p>
           </div>

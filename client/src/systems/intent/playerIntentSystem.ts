@@ -1,9 +1,20 @@
+import type { PlayerAttackAction } from "../../types/combat";
+
 export type PlayerIntentType =
   | "talk"
   | "attack"
+  | "attack_with_equipped_weapon"
+  | "unarmed_attack"
+  | "kick"
+  | "shove"
+  | "grapple"
+  | "throw_object"
+  | "improvised_attack"
   | "defend"
+  | "dodge"
   | "retreat"
   | "flee"
+  | "use_environment"
   | "free_companion"
   | "leave_companion"
   | "request_city_entry"
@@ -35,18 +46,22 @@ export type PlayerIntent = {
   rawText: string;
   isGameplayIntent: boolean;
   itemHint?: string;
+  combatAction?: PlayerAttackAction["type"];
+  objectHint?: PlayerAttackAction["objectHint"];
 };
 
 const INTENT_PATTERNS: Array<{
   type: PlayerIntentType;
   patterns: RegExp[];
   gameplay?: boolean;
+  combatAction?: PlayerAttackAction["type"];
+  objectHint?: PlayerAttackAction["objectHint"];
 }> = [
   {
     type: "request_city_entry",
     gameplay: true,
     patterns: [
-      /хочу.{0,20}войти|пропусти|пройти.{0,20}город|впуст|пустить.{0,20}город|я прибыл|войти в город/,
+      /хочу.{0,20}войти|пропусти|пройти.{0,20}город|впуст|пустить.{0,20}город|я прибыл|войти в город|пройти/,
       /want.{0,20}enter|let me in|enter.{0,20}city|pass through|arrived.{0,20}business/,
     ],
   },
@@ -72,17 +87,80 @@ const INTENT_PATTERNS: Array<{
     type: "leave_companion",
     gameplay: true,
     patterns: [
-      /оставл|оставить|не буду помогать|ухож|уйду|иду дальше|пойду своей дорогой/,
+      /оставл|оставить|не буду помогать|ухожу|уйду|иду дальше|пойду своей дорогой/,
       /leave|walk away|go on|do not help|won't help/,
+    ],
+  },
+  {
+    type: "throw_object",
+    gameplay: true,
+    combatAction: "throw_object",
+    objectHint: "stone",
+    patterns: [
+      /броса(?:ю|ть).{0,20}(?:камень|камнем|бутыл|факел|палк|предмет)|кида(?:ю|ть).{0,20}(?:камень|камнем|бутыл|факел|палк|предмет)|швыря(?:ю|ть).{0,20}(?:камень|камнем|бутыл|факел|палк|предмет)/,
+      /throw.{0,20}(?:stone|rock|bottle|torch|stick|object)|hurl.{0,20}(?:stone|rock|bottle|torch|stick|object)/,
+    ],
+  },
+  {
+    type: "improvised_attack",
+    gameplay: true,
+    combatAction: "improvised",
+    patterns: [
+      /использу(?:ю|ю).{0,20}(?:палк|бутыл|факел|предмет)|бью.{0,20}(?:палк|бутыл|факел|предмет)/,
+      /improvis|use.{0,20}(?:stick|bottle|torch|object)|hit.{0,20}(?:stick|bottle|torch|object)/,
+    ],
+  },
+  {
+    type: "kick",
+    gameplay: true,
+    combatAction: "kick",
+    patterns: [/пина(?:ю|ть)|бью.{0,12}ног|сбить.{0,20}с ног|удар.{0,12}ног/, /kick|boot|trip/],
+  },
+  {
+    type: "shove",
+    gameplay: true,
+    combatAction: "shove",
+    patterns: [/толка(?:ю|ть)|оттолк|сбива(?:ю|ть).{0,20}с ног|пихаю/, /shove|push|knock.{0,20}down/],
+  },
+  {
+    type: "grapple",
+    gameplay: true,
+    combatAction: "grapple",
+    patterns: [/хвата(?:ю|ть)|удерж|обхват|борюсь|схват/, /grapple|grab|hold|wrestle/],
+  },
+  {
+    type: "unarmed_attack",
+    gameplay: true,
+    combatAction: "unarmed",
+    patterns: [
+      /кулак|кулаком|кулаками|бью.{0,20}(?:рук|лиц|его|ее|её)|ударя(?:ю|ть)|дерусь|без оруж/,
+      /punch|fist|unarmed|bare hand|hit.{0,20}(?:face|him|her)/,
+    ],
+  },
+  {
+    type: "attack_with_equipped_weapon",
+    gameplay: true,
+    combatAction: "weapon",
+    patterns: [
+      /(?:атак|напада|бью|ударя|рубл|режу|колю|замахива|выпад).{0,36}(?:меч|топор|кинжал|нож|лук|арбалет|стрел|болт|дубин|булав|копь)|(?:мечом|топором|кинжалом|ножом|дубиной|булавой|копьем).{0,36}(?:атак|бью|ударя|рубл|режу|колю)|(?:стреляю|выстрел|выпускаю).{0,36}(?:лук|арбалет|стрел|болт)/,
+      /(?:attack|strike|hit|slash|stab|swing|shoot|fire|loose).{0,36}(?:sword|axe|dagger|knife|bow|crossbow|arrow|bolt|club|mace|spear)|(?:with|using).{0,16}(?:sword|axe|dagger|knife|bow|crossbow|club|mace|spear).{0,36}(?:attack|strike|hit|slash|stab|shoot|fire)/,
     ],
   },
   {
     type: "attack",
     gameplay: true,
-    patterns: [
-      /атак|напада|ударя|ударить|бью|рубл|режу|стреля|пытаюсь.{0,20}удар/,
-      /attack|strike|hit|slash|shoot|stab|swing/,
-    ],
+    combatAction: "auto",
+    patterns: [/атак|напада|ударить|ударю|бью|strike|attack|hit|swing/, /attack|strike|hit|swing/],
+  },
+  {
+    type: "dodge",
+    gameplay: true,
+    patterns: [/уворач|отскак|уйти.{0,20}удар/, /dodge|sidestep|evade/],
+  },
+  {
+    type: "defend",
+    gameplay: true,
+    patterns: [/защища|закрыва|блокир|ставлю блок/, /defend|block|guard myself/],
   },
   {
     type: "flee",
@@ -181,18 +259,32 @@ export function parsePlayerIntent(text: string, context: SceneContext): PlayerIn
 
   for (const intent of INTENT_PATTERNS) {
     if (intent.patterns.some((pattern) => pattern.test(normalizedText))) {
-      return {
+      const parsedIntent: PlayerIntent = {
         type: intent.type,
         rawText: text,
         isGameplayIntent: Boolean(intent.gameplay),
         itemHint: getItemHint(normalizedText),
+        combatAction: intent.combatAction,
+        objectHint: intent.objectHint,
       };
+
+      console.info("[Intent] parsed", {
+        rawText: text,
+        intentType: parsedIntent.type,
+        combatAction: parsedIntent.combatAction,
+      });
+
+      return parsedIntent;
     }
   }
 
   if (context.eventId === "anariel_intro" && /кто ты|who are you|поговор|говор|скажи|tell|talk/.test(normalizedText)) {
-    return { type: "talk", rawText: text, isGameplayIntent: false };
+    const parsedIntent: PlayerIntent = { type: "talk", rawText: text, isGameplayIntent: false };
+    console.info("[Intent] parsed", { rawText: text, intentType: parsedIntent.type });
+    return parsedIntent;
   }
 
-  return { type: "unknown", rawText: text, isGameplayIntent: false };
+  const parsedIntent: PlayerIntent = { type: "unknown", rawText: text, isGameplayIntent: false };
+  console.info("[Intent] parsed", { rawText: text, intentType: parsedIntent.type });
+  return parsedIntent;
 }

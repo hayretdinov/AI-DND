@@ -1,5 +1,181 @@
 # AI-DND Project Status
 
+## Combat Thought Hints
+
+Update date: 2026-07-18
+
+- Added deterministic combat suggestions to the existing event `Thoughts` panel instead of creating a new panel.
+- Hints are text-only helper examples; clicking an example inserts it into the current dialogue input without sending or resolving the action.
+- Context uses combat phase, active turn, player/target combatants, equipped weapon, shield/offhand item, distance, cover, magic knowledge, ranged weapon readiness, ammo, and post-combat state.
+- Hints avoid impossible suggestions such as melee attacks from medium distance, spear thrusts while too close, unloaded crossbow shots, ranged shots without ammo, and magic without enough mana/known formula.
+- Added generator fixtures covering sword, dagger, spear distance, unarmed, shield, distance, magic, crossbow, turn order, and post-combat behavior.
+- Added docs: `docs/Systems/COMBAT_THOUGHT_HINTS.md`.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-18.
+
+## Magic Word Combat Formula Routing
+
+Update date: 2026-07-17
+
+- Pure formulas such as `Игнис Ланца Хостис` now route to `magic` without requiring a verb.
+- Parser normalization accepts lowercase, quotes, punctuation, and `Произношу:` intro text while storing canonical ids `ignis + lancea + hostis`.
+- Questions, teaching/history mentions, negation, and trade wording remain non-cast routes.
+- Arkel's basic magic lesson unlocks `hostis`, starter mana for trained non-mages, and known formula `fire_lance`.
+- `fire_lance` continues through the existing `validateMagicFormula` and `resolveSpell` path, spending mana and applying NPC HP changes before the standard enemy turn.
+- Added docs: `docs/Systems/MAGIC_WORD_COMBAT.md`; updated magic, routing, trainer, combat, narration, recovery, status, and bible docs.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-17.
+
+## Turn Based Combat State
+
+Update date: 2026-07-17
+
+- Added authoritative `activeCombat` save state with phase, round, stable turn order, active combatant, combatants, action deduplication, and debug log.
+- Existing melee, ranged, magic, and legacy combat routes now synchronize player results into the same turn state.
+- Enemy turns now run automatically after valid player combat actions while the enemy is alive and able to act.
+- Enemy attacks apply real player HP loss down to 0 instead of clamping the player to 1 HP.
+- Removed the hidden immediate counterattack from text melee and legacy player attack resolution.
+- Invalid or unrecognized combat actions do not advance the queue and do not grant a free enemy turn.
+- Added compile-time self-test fixture for turn combat state and enemy turn flow.
+- Added docs: `docs/Systems/TURN_BASED_COMBAT.md`; updated combat narration and recovery docs.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-17; preview smoke-check returned HTTP 200.
+
+## Resource Regeneration and Training Request Gate
+
+Update date: 2026-07-16
+
+- Added game-time based mana and stamina regeneration through `client/src/systems/resources/resourceRegeneration.ts`.
+- Regeneration uses `currentDay/currentHour`, stores `resourceRegeneration.lastProcessedGameMinute`, clamps to maximum values, preserves fractional gains, and does not use render-frame timers or real offline time.
+- Camp rest saves with the `sleep` regeneration mode; ordinary travel/save normalization uses the normal mode.
+- Magic spending now marks mana regeneration as delayed; melee and ranged combat spending now marks stamina regeneration as delayed.
+- Trainer and blacksmith action panels no longer appear automatically on first conversation.
+- Chat learning phrases now route as `trainingRequest`; `EventScene` opens trainer/blacksmith actions only after an accepted per-NPC agreement saved in `player.trainerProgression.trainerAgreements`.
+- Negated or refused training requests save a refusal and keep the action panel hidden.
+- Added docs: `docs/Systems/RESOURCE_REGENERATION.md`; updated trainer and chat routing docs.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-16.
+
+## Top Status HUD and Tabbed Trader UI
+
+Update date: 2026-07-15
+
+- Added a shared `TopStatusBar` / `StatusIndicator` component for the main event indicators.
+- Dynamic NPC and merchant scenes now show health, mana, stamina, distance, cover, relationship, trust, fear, and hostility in one top row.
+- Removed the status values from the dialogue header stats so the same numbers are not duplicated inside the chat panel.
+- Merchant scenes now use the same top HUD instead of the old merchant-only status bar.
+- The visible merchant item selector is now a single right-side panel with `Купить` and `Продать` tabs.
+- Buy mode shows merchant stock and creates `player_buys` deals; sell mode shows player inventory and creates `player_sells` deals.
+- Switching trade tabs clears the current active deal to avoid stale selected items.
+- The deal area remains transparent and no longer contains separate confirm/refuse buttons; accepted deals are confirmed inside the shared dialogue panel action area.
+- Added docs: `docs/Systems/TOP_STATUS_HUD.md` and `docs/Systems/TRADER_UI.md`.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-15; preview smoke-check returned HTTP 200.
+
+## Shared Trader Dialogue, Hidden Combat Numbers, and Racial Stats
+
+Update date: 2026-07-15
+
+- Merchant scenes now use the common dialogue component and shared dialogue styling without a merchant-only dialogue panel class.
+- Melee, ranged, and magic player-facing narration no longer shows roll totals, difficulty values, damage numbers, dice formulas, or numeric bonuses.
+- Combat numeric data remains available internally through resolver results and combat log `debugData`.
+- Added racial stat definitions for the existing character creation races: Human, Elf, Dwarf, and Orc.
+- Character creation stores base attributes, allocated points, race modifiers, final attributes, and a stats schema version.
+- Save normalization migrates old characters into the racial stat schema while preserving existing save loading.
+- Added docs: `docs/Systems/COMBAT_NARRATION.md` and `docs/Systems/RACIAL_STATS_SYSTEM.md`.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-15.
+
+## Trader Dialogue UI
+
+Update date: 2026-07-15
+
+- Merchant scenes now keep the shared `SceneDialoguePanel` but add a merchant-only lower full-width layout so trade panels no longer overlap the chat composer.
+- Merchant dialogue history uses a flexible scroll region, preserves manual scroll position when the player reads old messages, and wraps long text safely.
+- The textarea blocks blank messages, supports Enter to send, Shift+Enter for new lines, and IME composition without premature send.
+- Sending is protected against duplicate submit attempts, focus returns to the textarea after send, and AI reply errors preserve the typed text.
+- Editable targets are ignored by global guide hotkeys, so typing inside the textarea is not intercepted by scene keyboard handlers.
+- Added compile-time dialogue input fixtures and documented the UI in `docs/Systems/TRADER_DIALOGUE_UI.md`.
+- Build passes with `npm.cmd run build` from `client/`; preview smoke-check returned HTTP 200 on `http://127.0.0.1:4173/`.
+
+## Trainer NPC System
+
+Update date: 2026-07-15
+
+- Added persistent trainer definitions for Master Sword Edgar, Archer Iara, Magister Arkel, High Mage Elyrion, Archmage Tarvis, General Vargas, and Lord Commander Cedric.
+- Added supplied trainer images under `client/public/assets/npcs/trainers/`.
+- Added Central Settlement map placements for the training yard, archery range, and magister hut.
+- Western Great City mentor NPC markers for Elyrion, Tarvis, Vargas, and Cedric now open as available trainer scenes.
+- Added `player.trainerProgression` save normalization with learned tiers, skill points, spent points, free basic lessons, and guide tracking.
+- Training actions appear inside the shared dialogue panel and update combat training, magic words, gold, skill points, and guide items through local game systems.
+- Added `archery_basics_guide` as a readable guide item and documented the trainer system in `docs/Systems/TRAINER_NPC_SYSTEM.md`.
+
+## Magic Word System
+
+Update date: 2026-07-15
+
+- Added `client/src/systems/magic/` with types, dictionary, spell definitions, parser, validator, resolver, progression, messages, effects, and self-test fixtures.
+- Added `player.magic` state and save migration for old saves without magic.
+- Mage character creation now grants starting words and formulas.
+- NPC scene chat now detects typed magical formulas and resolves them locally before AI dialogue.
+- Inventory now shows a compact grimoire and mana potions restore mana for magic-capable characters.
+- NPC prompts explicitly forbid AI from deciding magic outcomes.
+- Added `docs/Systems/MAGIC_WORD_SYSTEM.md`.
+
+## Dialogue, Merchant, Inventory, and AI Sanitizer Hardening
+
+Update date: 2026-07-14
+
+- Removed the remaining visual Anariel advice/hint UI while preserving normal companion dialogue, memory, location context, camp presence, and visual progression.
+- Added a shared transparent dialogue background token and enlarged the merchant dialogue panel.
+- Added missing merchant and combat localization keys for approximate pricing, closed negotiations, insulting offers, and hidden combat result labels.
+- Item icons now keep a visible fallback when image files are absent. The five known missing assets are documented in `docs/Systems/INVENTORY_SYSTEM.md`.
+- Added authorized item transfer reasons and blocked unauthorised `[[GIVE_ITEM:...]]` grants.
+- Scripted requests for simple clothes now produce a buy/barter/work offer instead of a free item.
+- Added `inWorldResponseSanitizer` and routed Anariel, NPC, and Game Master text through it before UI and memory writes.
+- Local AI technical errors are kept out of player-facing dialogue notices.
+
+## Ardania Lore Keeper Integration
+
+Update date: 2026-07-14
+
+- Preserved the attached canonical lore file at `docs/lore/ARDANIA_WORLD_LORE.md`.
+- Added client-safe structured lore entries in `client/src/data/ardaniaLore.ts`; secret lore is not passed into ordinary client-side NPC prompts.
+- Added `LoreKeeperService`, `ArdanianLoreRepository`, `NpcLoreProfileBuilder`, and `LoreResponseValidator`.
+- AI-enabled NPC prompts now include Ardania canon context selected by NPC role, profession, faction, and knowledge level.
+- NPC responses are validated against metaknowledge, modern terms, and prompt-injection echoes before being shown.
+- NPC runtime memory can store player-provided rumors as `RUMOR`, not `FACT`.
+- Added a local typed EventBus for lore and NPC dialogue events.
+- Added compile-time self-test fixtures for common, scholarly, secret, modern-term, prompt-injection, and learned-rumor scenarios.
+- Added `docs/LORE_SYSTEM.md`.
+
+## Gate Entry, Unarmed Combat, and Dialogue Role Split
+
+Update date: 2026-07-14
+
+- Restored the gate `Enter` / `Пройти` action as a separate `event-context-actions` UI layer above the dialogue panel.
+- The city entry button now depends on saved `cityAccess[cityId].status === "allowed"`, not on Local AI, the last NPC reply, or transient dialogue state.
+- Expanded player intent parsing for weapon attacks, unarmed attacks, kicks, shoves, grapples, thrown objects, improvised attacks, dodge, retreat, and flee.
+- Generic attack falls back to unarmed when no weapon is equipped; specific weapon attacks remain blocked if the weapon is missing.
+- Added local improvised/thrown-object validation for nearby stones and debris.
+- Combat with bandits and monsters resolves fully without Local AI: rolls, hit/miss, damage, defeat, and enemy counterattack are calculated by the Game Engine.
+- Lower scene dialogue now separates `player`, `npc`, `game_master`, `combat`, and `system` messages.
+- Added debug logs for intent parsing, combat player action, combat enemy action, Game Master narration source, and city enter button state.
+- Added system docs: `docs/Systems/COMBAT_SYSTEM.md`, `docs/Systems/PLAYER_INTENT_SYSTEM.md`, `docs/Systems/AI_DUNGEON_MASTER_SYSTEM.md`, and `docs/Systems/CITY_MAP_SYSTEM.md`.
+
+## Merchant Scene and NPC Local Knowledge
+
+- Added the supplied merchant stall background at `client/public/assets/locations/merchant_stall.png`.
+- Added a dedicated Central Settlement merchant background at `client/public/assets/backgrounds/merchants/central_settlement_merchant_background.png`.
+- Added `client/src/data/sceneAssets.ts` so scene backgrounds are resolved by NPC/event identity and scene mode.
+- Central Settlement merchant now uses the new dedicated background; Western Great City merchant keeps `merchant_stall.png`.
+- Central Settlement gate guard now uses `client/public/assets/locations/central_settlement.png` instead of a merchant stall.
+- Merchant events now use the stall background instead of generic city backgrounds.
+- Reworked merchant UI inside `EventScene`: merchant goods are on the left, merchant/stall and trade zone are centered, player inventory is on the right.
+- The trade footer is fixed inside the center trade zone. The `Trade` / `Confirm Trade` button is always visible and becomes enabled only after the engine marks the deal accepted.
+- Raised the trade zone, shifted the merchant figure slightly right, aligned bottom navigation to the right, and moved Anariel's merchant hint into the upper-left area of the center stage.
+- Item grids and dialogue messages own their scroll areas; the scene root remains `100dvh` with hidden overflow to prevent overlap at small heights.
+- Added bottom merchant navigation for Inventory, City Map, World Map, Journal, and Settings using existing UI assets where available.
+- Added `worldEntityRegistry` and `npcKnowledgeSystem` for settlement-limited NPC knowledge.
+- Local AI prompts now receive compact known NPC/location lists instead of broad world access.
+- Optional AI mention markers `[[MENTION_NPC:...]]` and `[[MENTION_LOCATION:...]]` are validated and stripped before UI display.
+- Added docs: `docs/Systems/MERCHANT_SYSTEM.md` and `docs/Systems/NPC_KNOWLEDGE_SYSTEM.md`.
+- Build passes: `npm.cmd run build` in `client` completed successfully on 2026-07-14.
+
 Дата обновления: 2026-07-03
 
 ## Western Great City Map and Gate Flow
@@ -881,4 +1057,19 @@ Update date: 2026-07-13
 - Added hidden AI command parsing for `[[GIVE_ITEM:itemId:quantity]]` and `[[REWARD_GOLD:amount]]`; markers are stripped before dialogue is shown or saved.
 - AI item rewards are validated against actor-specific allow lists before inventory changes, so unknown or disallowed items are ignored with a console warning.
 - Added a scripted gate test choice, Ask for food / Попросить еды, that grants `stale_bread` through the same inventory reward helper and persists it in save data.
+- Build passes with `npm.cmd run build` from `client/`.
+# Text Melee Combat
+
+- Added deterministic text melee combat parsing and resolution for NPC chat combat scenes.
+- Added stamina, distance, stance, body-zone targeting, injuries, and AI boundary rules for melee outcomes.
+- Old combat commands remain routed through the legacy fallback resolver.
+# Text Melee Combat Completion
+
+Update date: 2026-07-17
+
+- Added category-aware melee weapon configuration for unarmed, sword, dagger, knife, club, mace, axe, spear, staff, hammer, shield, and improvised attacks.
+- Text melee validation now resolves the requested equipped weapon category instead of blindly using the first equipped weapon.
+- Unarmed, kick, shove, and grapple actions no longer inherit equipped weapon damage.
+- Shove and grapple use deterministic resolution without normal weapon damage; grapple can apply a short text-combat status.
+- Explicit magic casting still routes before ranged and melee combat, preserving `Игнис Ланца Хостис`.
 - Build passes with `npm.cmd run build` from `client/`.

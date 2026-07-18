@@ -1,13 +1,20 @@
 import { buildNpcSystemPrompt } from "../../data/npcPrompts";
+import { getLanguage } from "../../i18n/i18n";
 import { requestLocalChatCompletion } from "../ai/localAiClient";
+import { sanitizeAiResponseForWorld } from "../ai/inWorldResponseSanitizer";
 import { createNpcCombatState } from "../combat/combatSystem";
+import { buildNpcKnowledgeContext, validateNpcWorldReferences } from "./npcKnowledgeSystem";
+import { appEventBus } from "../events/eventBus";
+import { loreResponseValidator } from "../lore/loreResponseValidator";
 import type { GameSave } from "../save/saveSystem";
 import type { WorldMapNodeId } from "../../data/worldMap";
 import type { NpcDefinition, NpcDialogueMessage, NpcInstance, NpcRuntimeState, NpcStatus } from "../../types/npc";
 
 const MAX_NPC_DIALOGUE_HISTORY = 20;
+const MAX_LEARNED_KNOWLEDGE = 12;
 const REWARD_GOLD_PATTERN = /\[\[REWARD_GOLD:(\d{1,3})\]\]/i;
 const ALLOWED_REWARD_ROLES = new Set<NpcDefinition["role"]>(["guard", "merchant", "civilian"]);
+const PLAYER_RUMOR_PATTERN = /говорят|слух|я слышал|я слышала|рассказывают|rumor|i heard|they say/i;
 
 export function createInitialNpcState(npcId: string): NpcRuntimeState {
   return {
@@ -100,10 +107,57 @@ function createNpcDialogueMessage(speaker: NpcDialogueMessage["speaker"], text: 
   };
 }
 
+function appendLearnedRumor<T extends NpcRuntimeState>(state: T, playerText: string): T {
+  if (!PLAYER_RUMOR_PATTERN.test(playerText)) {
+    return state;
+  }
+
+  const learnedEntry = {
+    id: `rumor-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text: playerText.slice(0, 240),
+    certainty: "RUMOR" as const,
+    learnedAt: new Date().toISOString(),
+    source: "player" as const,
+  };
+
+  appEventBus.emit("NPC_RUMOR_LEARNED", {
+    npcId: state.npcId,
+    knowledgeId: learnedEntry.id,
+  });
+
+  appEventBus.emit("NPC_KNOWLEDGE_LEARNED", {
+    npcId: state.npcId,
+    certainty: learnedEntry.certainty,
+  });
+
+  return {
+    ...state,
+    learnedKnowledge: [...(state.learnedKnowledge ?? []), learnedEntry].slice(-MAX_LEARNED_KNOWLEDGE),
+  };
+}
+
 export function appendNpcDialogueMessages<T extends NpcRuntimeState>(
   state: T,
   playerText: string,
   npcText: string,
+): T {
+  const stateWithLearnedRumor = appendLearnedRumor(state, playerText);
+
+  return {
+    ...stateWithLearnedRumor,
+    met: true,
+    dialogueHistory: [
+      ...stateWithLearnedRumor.dialogueHistory,
+      createNpcDialogueMessage("player", playerText),
+      createNpcDialogueMessage("npc", npcText),
+    ].slice(-MAX_NPC_DIALOGUE_HISTORY),
+  };
+}
+
+export function appendNpcGameMasterMessages<T extends NpcRuntimeState>(
+  state: T,
+  playerText: string,
+  narrationText: string,
 ): T {
   return {
     ...state,
@@ -111,7 +165,7 @@ export function appendNpcDialogueMessages<T extends NpcRuntimeState>(
     dialogueHistory: [
       ...state.dialogueHistory,
       createNpcDialogueMessage("player", playerText),
-      createNpcDialogueMessage("npc", npcText),
+      createNpcDialogueMessage("game_master", narrationText),
     ].slice(-MAX_NPC_DIALOGUE_HISTORY),
   };
 }
@@ -174,7 +228,7 @@ export async function getNpcAiReply(save: GameSave, npc: NpcDefinition, state: N
   }
 
   const messages = [
-    { role: "system" as const, content: buildNpcSystemPrompt(npc, { save, state }) },
+    { role: "system" as const, content: buildNpcSystemPrompt(npc, { save, state, playerText }) },
     ...state.dialogueHistory.slice(-10).map((message) => ({
       role: message.speaker === "player" ? ("user" as const) : ("assistant" as const),
       content: message.text,
@@ -182,5 +236,32 @@ export async function getNpcAiReply(save: GameSave, npc: NpcDefinition, state: N
     { role: "user" as const, content: playerText },
   ];
 
-  return requestLocalChatCompletion(messages);
+  const reply = await requestLocalChatCompletion(messages);
+
+  if (reply.usedFallback) {
+    return reply;
+  }
+
+  const validation = validateNpcWorldReferences(
+    reply.text,
+    buildNpcKnowledgeContext(npc, { save, state }),
+  );
+  const loreValidation = loreResponseValidator.validate(validation.cleanText || reply.text, getLanguage());
+  const sanitizedReply = sanitizeAiResponseForWorld({
+    text: loreValidation.cleanText,
+    speakerId: npc.id,
+    speakerRole: npc.role,
+    language: getLanguage(),
+    context: state.npcId,
+  });
+  appEventBus.emit("NPC_DIALOGUE_GENERATED", {
+    npcId: npc.id,
+    usedFallback: reply.usedFallback,
+    loreViolations: loreValidation.violations.length,
+  });
+
+  return {
+    ...reply,
+    text: sanitizedReply.cleanText,
+  };
 }

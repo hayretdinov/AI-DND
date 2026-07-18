@@ -14,7 +14,13 @@ export function rollRandomTravelEvent(fromId: WorldMapNodeId, targetId: WorldMap
     return null;
   }
 
-  const event = travelEvents[Math.floor(Math.random() * travelEvents.length)] ?? travelEvents[0];
+  const totalWeight = travelEvents.reduce((total, event) => total + Math.max(1, event.weight ?? 1), 0);
+  let eventRoll = Math.random() * totalWeight;
+  const event =
+    travelEvents.find((candidate) => {
+      eventRoll -= Math.max(1, candidate.weight ?? 1);
+      return eventRoll <= 0;
+    }) ?? travelEvents[0];
   const triggerProgress = MIN_TRIGGER_PROGRESS + Math.random() * (MAX_TRIGGER_PROGRESS - MIN_TRIGGER_PROGRESS);
 
   return {

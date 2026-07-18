@@ -1,5 +1,6 @@
 import { getRoyalCourtEventId } from "./royalCourtNpcs";
 import { getNpcById } from "./npcs";
+import { getTrainerEventId } from "./trainerNpcs";
 import type { CityId, CityMapLocation, CityMapNpcPlacement } from "../types/city";
 
 export const WESTERN_GREAT_CITY_ID: CityId = "western_great_city";
@@ -303,6 +304,36 @@ export const cityMapLocations: CityMapLocation[] = [
     initiallyDiscovered: true,
   },
   {
+    id: "central_training_yard",
+    cityId: CENTRAL_SETTLEMENT_ID,
+    titleKey: "city.location.centralTrainingYard.title",
+    descriptionKey: "city.location.centralTrainingYard.description",
+    xPercent: 42.5,
+    yPercent: 49.5,
+    markerType: "military",
+    initiallyDiscovered: true,
+  },
+  {
+    id: "central_archery_range",
+    cityId: CENTRAL_SETTLEMENT_ID,
+    titleKey: "city.location.centralArcheryRange.title",
+    descriptionKey: "city.location.centralArcheryRange.description",
+    xPercent: 78.0,
+    yPercent: 33.5,
+    markerType: "guild",
+    initiallyDiscovered: true,
+  },
+  {
+    id: "central_mage_hut",
+    cityId: CENTRAL_SETTLEMENT_ID,
+    titleKey: "city.location.centralMageHut.title",
+    descriptionKey: "city.location.centralMageHut.description",
+    xPercent: 57.0,
+    yPercent: 47.0,
+    markerType: "archive",
+    initiallyDiscovered: true,
+  },
+  {
     id: "central_south_gate",
     cityId: CENTRAL_SETTLEMENT_ID,
     titleKey: "city.location.centralSouthGate.title",
@@ -362,8 +393,7 @@ const placementData: Array<Omit<CityMapNpcPlacement, "imageUrl" | "portraitUrl">
     xPercent: 83.5,
     yPercent: 59.4,
     visible: true,
-    available: false,
-    unavailableReasonKey: "city.access.needMilitaryReason",
+    available: true,
   },
   {
     cityId: WESTERN_GREAT_CITY_ID,
@@ -372,8 +402,7 @@ const placementData: Array<Omit<CityMapNpcPlacement, "imageUrl" | "portraitUrl">
     xPercent: 40.5,
     yPercent: 21.1,
     visible: true,
-    available: false,
-    unavailableReasonKey: "city.access.needGuardPermission",
+    available: true,
   },
   {
     cityId: WESTERN_GREAT_CITY_ID,
@@ -382,8 +411,7 @@ const placementData: Array<Omit<CityMapNpcPlacement, "imageUrl" | "portraitUrl">
     xPercent: 83.9,
     yPercent: 29.3,
     visible: true,
-    available: false,
-    unavailableReasonKey: "city.access.needMageTowerAccess",
+    available: true,
   },
   {
     cityId: WESTERN_GREAT_CITY_ID,
@@ -392,8 +420,7 @@ const placementData: Array<Omit<CityMapNpcPlacement, "imageUrl" | "portraitUrl">
     xPercent: 82.3,
     yPercent: 31.5,
     visible: true,
-    available: false,
-    unavailableReasonKey: "city.access.needMageTowerAccess",
+    available: true,
   },
   {
     cityId: WESTERN_GREAT_CITY_ID,
@@ -433,6 +460,42 @@ const placementData: Array<Omit<CityMapNpcPlacement, "imageUrl" | "portraitUrl">
   },
   {
     cityId: CENTRAL_SETTLEMENT_ID,
+    npcInstanceId: "central_blacksmith_dultran",
+    locationId: "central_blacksmith",
+    xPercent: 30.5,
+    yPercent: 37.0,
+    visible: true,
+    available: true,
+  },
+  {
+    cityId: CENTRAL_SETTLEMENT_ID,
+    npcInstanceId: "edgar_swordmaster",
+    locationId: "central_training_yard",
+    xPercent: 42.5,
+    yPercent: 49.5,
+    visible: true,
+    available: true,
+  },
+  {
+    cityId: CENTRAL_SETTLEMENT_ID,
+    npcInstanceId: "iara_archer",
+    locationId: "central_archery_range",
+    xPercent: 78.0,
+    yPercent: 33.5,
+    visible: true,
+    available: true,
+  },
+  {
+    cityId: CENTRAL_SETTLEMENT_ID,
+    npcInstanceId: "arkel_magister",
+    locationId: "central_mage_hut",
+    xPercent: 57.0,
+    yPercent: 47.0,
+    visible: true,
+    available: true,
+  },
+  {
+    cityId: CENTRAL_SETTLEMENT_ID,
     npcInstanceId: "merchant_central_settlement",
     locationId: "central_market_square",
     xPercent: 51.7,
@@ -461,8 +524,20 @@ export function getCityMapNpcPlacements(cityId: CityId) {
 }
 
 export function getCityMapNpcEventId(npcInstanceId: string) {
+  if (
+    npcInstanceId === "edgar_swordmaster" ||
+    npcInstanceId === "iara_archer" ||
+    npcInstanceId === "arkel_magister"
+  ) {
+    return getTrainerEventId(npcInstanceId);
+  }
+
   if (npcInstanceId === "merchant_central_settlement") {
     return "merchant_central_settlement";
+  }
+
+  if (npcInstanceId === "central_blacksmith_dultran") {
+    return "central_blacksmith_dultran";
   }
 
   return npcInstanceId === "city_merchant_main" || npcInstanceId === "merchant_western_city"

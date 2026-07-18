@@ -10,6 +10,8 @@ type MerchantStockEntry = {
   quantity: number;
 };
 
+const DEFAULT_DEAL_QUANTITY = 1;
+
 const MERCHANT_STOCK: Record<string, { gold: number; items: MerchantStockEntry[] }> = {
   merchant_central_settlement: {
     gold: 85,
@@ -20,6 +22,10 @@ const MERCHANT_STOCK: Record<string, { gold: number; items: MerchantStockEntry[]
       { itemId: "bandage", quantity: 4 },
       { itemId: "simple_clothes", quantity: 1 },
       { itemId: "old_cloak", quantity: 1 },
+      { itemId: "wooden_club", quantity: 1 },
+      { itemId: "old_dagger", quantity: 1 },
+      { itemId: "simple_bow", quantity: 1 },
+      { itemId: "simple_arrows", quantity: 12 },
     ],
   },
   merchant_southern_city: {
@@ -29,6 +35,8 @@ const MERCHANT_STOCK: Record<string, { gold: number; items: MerchantStockEntry[]
       { itemId: "bandage", quantity: 6 },
       { itemId: "small_health_potion", quantity: 2 },
       { itemId: "rusty_sword", quantity: 1 },
+      { itemId: "iron_sword", quantity: 1 },
+      { itemId: "spear", quantity: 1 },
       { itemId: "wooden_club", quantity: 2 },
       { itemId: "cracked_wooden_shield", quantity: 1 },
     ],
@@ -39,6 +47,9 @@ const MERCHANT_STOCK: Record<string, { gold: number; items: MerchantStockEntry[]
       { itemId: "stale_bread", quantity: 4 },
       { itemId: "lockpick", quantity: 3 },
       { itemId: "old_dagger", quantity: 1 },
+      { itemId: "steel_sword", quantity: 1 },
+      { itemId: "iron_mace", quantity: 1 },
+      { itemId: "armor_piercing_arrows", quantity: 8 },
       { itemId: "rusty_axe", quantity: 1 },
       { itemId: "leather_scrap", quantity: 8 },
       { itemId: "sealed_letter", quantity: 1 },
@@ -50,6 +61,9 @@ const MERCHANT_STOCK: Record<string, { gold: number; items: MerchantStockEntry[]
       { itemId: "stale_bread", quantity: 4 },
       { itemId: "lockpick", quantity: 3 },
       { itemId: "old_dagger", quantity: 1 },
+      { itemId: "steel_sword", quantity: 1 },
+      { itemId: "steel_mace", quantity: 1 },
+      { itemId: "armor_piercing_arrows", quantity: 8 },
       { itemId: "rusty_axe", quantity: 1 },
       { itemId: "leather_scrap", quantity: 8 },
       { itemId: "sealed_letter", quantity: 1 },
@@ -145,8 +159,8 @@ export function calculateMerchantOffer(
   const relationship = merchant.relationship / 100;
   const deterministicNoise = ((item.id.length + merchant.merchantId.length) % 5) - 2;
   const marketValue = Math.max(1, Math.round(base * rarity * condition));
-  const buyFactor = 0.55 + relationship * 0.1 + charisma * 0.02;
-  const sellFactor = 1.18 - relationship * 0.08 - charisma * 0.015;
+  const buyFactor = 0.48 + relationship * 0.16 + charisma * 0.02;
+  const sellFactor = 1.25 - relationship * 0.16 - charisma * 0.015;
   const offer = side === "player_sells"
     ? Math.min(merchant.gold, Math.max(1, Math.round(marketValue * buyFactor + deterministicNoise)))
     : Math.max(1, Math.round(marketValue * sellFactor + deterministicNoise));
@@ -154,13 +168,25 @@ export function calculateMerchantOffer(
   return { basePrice: marketValue, merchantOffer: offer };
 }
 
+export function getApproximateMerchantPrice(price: number) {
+  const safePrice = Math.max(1, Math.round(price));
+  const band = Math.max(1, Math.round(safePrice * 0.08));
+  const low = Math.max(1, safePrice - band);
+  const high = safePrice + band;
+
+  return { low, high };
+}
+
 export function createMerchantDeal(
   merchant: MerchantState,
   player: PlayerCharacter,
   item: InventoryItem,
   side: MerchantDeal["side"],
+  quantity = DEFAULT_DEAL_QUANTITY,
 ): MerchantState {
-  const price = calculateMerchantOffer(merchant, player, item, side);
+  const dealQuantity = Math.max(1, Math.min(item.quantity, Math.floor(quantity)));
+  const dealItem = { ...item, quantity: dealQuantity };
+  const price = calculateMerchantOffer(merchant, player, dealItem, side);
 
   return {
     ...merchant,
@@ -169,7 +195,7 @@ export function createMerchantDeal(
       side,
       itemInstanceId: item.id,
       itemId: item.templateId,
-      quantity: item.quantity,
+      quantity: dealQuantity,
       basePrice: price.basePrice,
       merchantOffer: price.merchantOffer,
       dealState: "offered",
@@ -201,8 +227,32 @@ export function respondToTradeText(merchant: MerchantState, player: PlayerCharac
   const parsed = parseTradeReply(text);
   const deal = merchant.activeDeal;
   const charisma = getCharismaModifier(player);
-  const maxConcession = Math.max(1, Math.round(deal.basePrice * (0.12 + Math.max(0, charisma) * 0.02)));
+  const relationshipFactor = Math.max(-0.08, Math.min(0.18, merchant.relationship / 500));
+  const maxConcession = Math.max(1, Math.round(deal.basePrice * (0.08 + relationshipFactor + Math.max(0, charisma) * 0.015)));
   const desired = parsed.counterOffer;
+  const closeNegotiation = (textKey: string, note: string) => ({
+    merchant: rememberTrade({
+      ...merchant,
+      relationship: Math.max(-100, merchant.relationship - 4),
+      trust: Math.max(-100, merchant.trust - 3),
+      activeDeal: {
+        ...deal,
+        playerCounterOffer: desired,
+        dealState: "negotiation_closed" as const,
+      },
+    }, {
+      type: "refuse" as const,
+      itemId: deal.itemId,
+      quantity: deal.quantity,
+      price: desired ?? deal.merchantOffer,
+      note,
+    }),
+    text: textKey,
+  });
+
+  if (desired !== undefined && desired <= 0) {
+    return closeNegotiation("merchant.noFreeItems", "Player tried to trade for free.");
+  }
 
   if (parsed.refuses) {
     return {
@@ -226,6 +276,17 @@ export function respondToTradeText(merchant: MerchantState, player: PlayerCharac
 
   if (parsed.haggles || desired) {
     const target = desired ?? (deal.side === "player_sells" ? deal.merchantOffer + maxConcession : deal.merchantOffer - maxConcession);
+    const insultingLow = deal.side === "player_buys" && target < Math.max(1, Math.round(deal.basePrice * 0.35));
+    const insultingHigh = deal.side === "player_sells" && target > Math.round(deal.basePrice * 1.75);
+
+    if (insultingLow) {
+      return closeNegotiation("merchant.offerTooLow", "Player made an insulting low offer.");
+    }
+
+    if (insultingHigh) {
+      return closeNegotiation("merchant.offerTooHigh", "Player demanded an insulting high price.");
+    }
+
     const acceptable = deal.side === "player_sells"
       ? target <= deal.merchantOffer + maxConcession
       : target >= deal.merchantOffer - maxConcession;
@@ -239,6 +300,7 @@ export function respondToTradeText(merchant: MerchantState, player: PlayerCharac
       merchant: {
         ...merchant,
         haggleCount: merchant.haggleCount + 1,
+        trust: acceptable ? Math.min(100, merchant.trust + 1) : Math.max(-100, merchant.trust - 1),
         activeDeal: {
           ...deal,
           playerCounterOffer: desired,
@@ -260,7 +322,38 @@ function removeItem(items: InventoryItem[], itemInstanceId: string) {
   return items.filter((item) => item.id !== itemInstanceId);
 }
 
-function addItem(items: InventoryItem[], item: InventoryItem, owner: string) {
+function removeItemQuantity(items: InventoryItem[], itemInstanceId: string, quantity: number) {
+  return items
+    .map((item) => {
+      if (item.id !== itemInstanceId) {
+        return item;
+      }
+
+      return { ...item, quantity: item.quantity - quantity };
+    })
+    .filter((item) => item.quantity > 0);
+}
+
+function canStackItem(target: InventoryItem, source: InventoryItem, owner: string) {
+  return (
+    target.owner === owner &&
+    target.templateId === source.templateId &&
+    !target.equippable &&
+    !source.equippable &&
+    target.condition === source.condition &&
+    target.quality === source.quality
+  );
+}
+
+function addItem(items: InventoryItem[], item: InventoryItem, owner: string, origin = "trade", quantity = item.quantity) {
+  const stackIndex = items.findIndex((target) => canStackItem(target, item, owner));
+
+  if (stackIndex >= 0) {
+    return items.map((target, index) =>
+      index === stackIndex ? { ...target, quantity: target.quantity + quantity } : target,
+    );
+  }
+
   const instanceId = createInstanceId(owner, item.templateId);
 
   return [
@@ -270,10 +363,22 @@ function addItem(items: InventoryItem[], item: InventoryItem, owner: string) {
       id: instanceId,
       instanceId,
       owner,
-      origin: item.origin ?? "trade",
+      origin,
+      quantity,
       createdAt: new Date().toISOString(),
     },
   ];
+}
+
+function getInventoryWeight(items: InventoryItem[]) {
+  return items.reduce((total, item) => total + item.weight * item.quantity, 0);
+}
+
+function hasCarryCapacity(inventory: InventoryState, item: InventoryItem, quantity: number) {
+  const currentWeight = getInventoryWeight(inventory.items);
+  const addedWeight = item.weight * quantity;
+
+  return currentWeight + addedWeight <= inventory.maxCarryWeight;
 }
 
 function rememberTrade(merchant: MerchantState, memory: Omit<MerchantTradeMemory, "id" | "createdAt">): MerchantState {
@@ -306,26 +411,41 @@ export function confirmMerchantDeal(save: GameSave, merchant: MerchantState): { 
   if (deal.side === "player_sells") {
     const playerItem = inventory.items.find((item) => item.id === deal.itemInstanceId);
 
-    if (!playerItem || merchant.gold < deal.merchantOffer) {
+    if (!playerItem) {
+      return { save, merchant, ok: false, reason: "itemUnavailable" };
+    }
+
+    if (playerItem.isQuestItem || playerItem.questItem) {
+      return { save, merchant, ok: false, reason: "questItem" };
+    }
+
+    if (deal.quantity < 1 || playerItem.quantity < deal.quantity) {
+      return { save, merchant, ok: false, reason: "invalidQuantity" };
+    }
+
+    if (merchant.gold < deal.merchantOffer) {
       return { save, merchant, ok: false, reason: "cannotPay" };
     }
 
     const nextInventory: InventoryState = {
       ...inventory,
       gold: inventory.gold + deal.merchantOffer,
-      items: removeItem(inventory.items, playerItem.id),
-      equipment: Object.fromEntries(Object.entries(inventory.equipment).filter(([, itemId]) => itemId !== playerItem.id)),
+      items: removeItemQuantity(inventory.items, playerItem.id, deal.quantity),
+      equipment:
+        playerItem.quantity <= deal.quantity
+          ? Object.fromEntries(Object.entries(inventory.equipment).filter(([, itemId]) => itemId !== playerItem.id))
+          : inventory.equipment,
     };
     const nextMerchant = rememberTrade({
       ...merchant,
       gold: merchant.gold - deal.merchantOffer,
-      items: addItem(merchant.items, playerItem, merchant.merchantId),
+      items: addItem(merchant.items, playerItem, merchant.merchantId, "trade", deal.quantity),
       activeDeal: undefined,
       relationship: Math.min(100, merchant.relationship + 1),
     }, {
       type: "sell",
       itemId: playerItem.templateId,
-      quantity: playerItem.quantity,
+      quantity: deal.quantity,
       price: deal.merchantOffer,
       note: "Player sold item to merchant.",
     });
@@ -339,25 +459,37 @@ export function confirmMerchantDeal(save: GameSave, merchant: MerchantState): { 
 
   const merchantItem = merchant.items.find((item) => item.id === deal.itemInstanceId);
 
-  if (!merchantItem || inventory.gold < deal.merchantOffer) {
-    return { save, merchant, ok: false, reason: "cannotBuy" };
+  if (!merchantItem) {
+    return { save, merchant, ok: false, reason: "itemUnavailable" };
+  }
+
+  if (deal.quantity < 1 || merchantItem.quantity < deal.quantity) {
+    return { save, merchant, ok: false, reason: "invalidQuantity" };
+  }
+
+  if (inventory.gold < deal.merchantOffer) {
+    return { save, merchant, ok: false, reason: "insufficientGold" };
+  }
+
+  if (!hasCarryCapacity(inventory, merchantItem, deal.quantity)) {
+    return { save, merchant, ok: false, reason: "noSpace" };
   }
 
   const nextInventory: InventoryState = {
     ...inventory,
     gold: inventory.gold - deal.merchantOffer,
-    items: addItem(inventory.items, merchantItem, "player"),
+    items: addItem(inventory.items, merchantItem, "player", "trade", deal.quantity),
   };
   const nextMerchant = rememberTrade({
     ...merchant,
     gold: merchant.gold + deal.merchantOffer,
-    items: removeItem(merchant.items, merchantItem.id),
+    items: removeItemQuantity(merchant.items, merchantItem.id, deal.quantity),
     activeDeal: undefined,
     relationship: Math.min(100, merchant.relationship + 1),
   }, {
     type: "buy",
     itemId: merchantItem.templateId,
-    quantity: merchantItem.quantity,
+    quantity: deal.quantity,
     price: deal.merchantOffer,
     note: "Player bought item from merchant.",
   });

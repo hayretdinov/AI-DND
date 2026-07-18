@@ -1,7 +1,7 @@
 import type { InventoryItem } from "./inventory";
 
 export type MerchantDealSide = "player_sells" | "player_buys";
-export type MerchantDealState = "none" | "offered" | "countered" | "accepted";
+export type MerchantDealState = "none" | "offered" | "countered" | "accepted" | "negotiation_closed";
 
 export type MerchantTradeMemory = {
   id: string;

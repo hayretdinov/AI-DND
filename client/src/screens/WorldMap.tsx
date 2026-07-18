@@ -11,12 +11,8 @@ import {
 } from "react";
 import { ScreenPanel } from "../components/ScreenPanel";
 import { FantasyButton } from "../components/FantasyButton";
-import {
-  ANARIEL_ADVICE_PORTRAIT,
-  getAnarielWorldAdviceKey,
-  isAnarielActiveCompanion,
-} from "../data/companions/anarielAdvice";
-import { t, type TranslationKey } from "../i18n/i18n";
+import { isAnarielActiveCompanion } from "../data/companions/anarielVisuals";
+import { getLanguage, t, type TranslationKey } from "../i18n/i18n";
 import {
   appendDialogueMessages,
   applyAnarielToneDelta,
@@ -24,6 +20,7 @@ import {
   getAnarielAiReply,
   getFallbackReplyKey,
 } from "../systems/companions/anarielDialogue";
+import { sanitizeAiResponseForWorld } from "../systems/ai/inWorldResponseSanitizer";
 import { getLocationEventById } from "../data/locationEvents";
 import { getNpcById } from "../data/npcs";
 import {
@@ -51,6 +48,7 @@ type WorldMapProps = {
   saveVersion: number;
   onOpenEvent: () => void;
   onOpenCityMap: () => void;
+  onOpenSwampMap: () => void;
   onOpenCamp: () => void;
   onOpenInventory: () => void;
   onOpenJournal: () => void;
@@ -261,6 +259,7 @@ export function WorldMap({
   saveVersion,
   onOpenEvent,
   onOpenCityMap,
+  onOpenSwampMap,
   onOpenCamp,
   onOpenInventory,
   onOpenJournal,
@@ -283,8 +282,6 @@ export function WorldMap({
   const [markerPosition, setMarkerPosition] = useState({ x: initialNode.x, y: initialNode.y });
   const [travelingTo, setTravelingTo] = useState<WorldMapNodeId | null>(null);
   const [arrivalMessage, setArrivalMessage] = useState("");
-  const [anarielAdviceIndex, setAnarielAdviceIndex] = useState(0);
-  const [isAnarielPortraitMissing, setIsAnarielPortraitMissing] = useState(false);
   const [isAnarielChatOpen, setIsAnarielChatOpen] = useState(false);
   const [anarielChatInput, setAnarielChatInput] = useState("");
   const [isAnarielThinking, setIsAnarielThinking] = useState(false);
@@ -327,7 +324,6 @@ export function WorldMap({
   const showAnarielCompanionPanel = isAnarielActiveCompanion(currentChatSave);
   const activeAnarielState = currentChatSave?.companions?.anariel;
   const anarielDialogueHistory = activeAnarielState?.dialogueHistory ?? [];
-  const anarielAdviceKey = getAnarielWorldAdviceKey(anarielAdviceIndex);
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
   const playerGold = getPlayerGold(save);
@@ -404,6 +400,18 @@ export function WorldMap({
     }
   }, [playerPortraitUrl]);
 
+  useEffect(() => {
+    if (!showAnarielCompanionPanel) {
+      return;
+    }
+
+    console.info("[LocationContext] companion", {
+      companion: "anariel",
+      currentLocationId,
+      currentLocationTitle: translateMapKey(currentNode.titleKey),
+    });
+  }, [currentLocationId, currentNode.titleKey, showAnarielCompanionPanel]);
+
   const handlePlayerPortraitError = () => {
     if (!isPlayerPortraitFailed) {
       console.warn("WorldMap player portrait image failed to load. Visible fallback will be shown.", playerPortraitUrl);
@@ -421,9 +429,6 @@ export function WorldMap({
   const handleResetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  };
-  const handleAskAnarielAdvice = () => {
-    setAnarielAdviceIndex((currentIndex) => currentIndex + 1);
   };
   const handleOpenAnarielChat = () => {
     if (!showAnarielCompanionPanel) {
@@ -460,8 +465,14 @@ export function WorldMap({
     };
     const fallbackReply = t(getFallbackReplyKey(sourceAnariel.dialogueHistory.length));
     const aiReply = await getAnarielAiReply(saveForAi, playerText);
-    const replyText = aiReply.usedFallback ? fallbackReply : aiReply.text;
-    const finalAnariel = appendDialogueMessages(tonedAnariel, playerText, replyText);
+    const sanitizedReply = sanitizeAiResponseForWorld({
+      text: aiReply.usedFallback ? fallbackReply : aiReply.text,
+      speakerId: "anariel",
+      speakerRole: "companion",
+      language: getLanguage(),
+      context: currentLocationId,
+    });
+    const finalAnariel = appendDialogueMessages(tonedAnariel, playerText, sanitizedReply.cleanText);
     const nextSave: GameSave = {
       ...sourceSave,
       companions: {
@@ -472,11 +483,7 @@ export function WorldMap({
 
     saveGame(nextSave);
     setChatSave(nextSave);
-    setAnarielChatNotice(
-      aiReply.usedFallback
-        ? t(aiReply.reason === "disabled" ? "companion.chat.aiDisabled" : "companion.chat.aiUnavailable")
-        : "",
-    );
+    setAnarielChatNotice(aiReply.usedFallback && aiReply.reason === "disabled" ? t("companion.chat.aiDisabled") : "");
     setIsAnarielThinking(false);
   };
 
@@ -819,7 +826,30 @@ export function WorldMap({
   };
 
   const handleEnterLocation = () => {
-    if (!save || !currentNode.enterEventId || isEnterDisabled) {
+    if (!save || isEnterDisabled) {
+      return;
+    }
+
+    if (currentNode.id === "swamp_location") {
+      saveGame({
+        ...save,
+        currentLocationId: "swamp_location",
+        activeEvent: null,
+        swampState: {
+          ...(save.swampState ?? { discoveredLocationIds: [] }),
+          currentLocationId: save.swampState?.currentLocationId ?? "swamp_entrance",
+          discoveredLocationIds: Array.from(new Set(["swamp_entrance", ...(save.swampState?.discoveredLocationIds ?? [])])),
+        },
+        navigationReturnContext: {
+          screen: "swampMap",
+          locationId: save.swampState?.currentLocationId ?? "swamp_entrance",
+        },
+      });
+      onOpenSwampMap();
+      return;
+    }
+
+    if (!currentNode.enterEventId) {
       return;
     }
 
@@ -1091,41 +1121,6 @@ export function WorldMap({
             </button>
           </div>
 
-          {showAnarielCompanionPanel ? (
-            <aside className="world-map-companion-panel" aria-label={t("companion.advice.title")}>
-              <div className="world-map-companion-portrait" aria-hidden="true">
-                {!isAnarielPortraitMissing ? (
-                  <img
-                    src={ANARIEL_ADVICE_PORTRAIT}
-                    alt=""
-                    draggable={false}
-                    onError={() => setIsAnarielPortraitMissing(true)}
-                  />
-                ) : null}
-                <span>A</span>
-              </div>
-              <div className="world-map-companion-info">
-                <strong className="world-map-companion-name">{t("companion.anariel.name")}</strong>
-                <span className="world-map-companion-status">{t("companion.anariel.status")}</span>
-              </div>
-              <p className="world-map-companion-text">{t(anarielAdviceKey)}</p>
-              <button
-                className="world-map-companion-button"
-                type="button"
-                onClick={handleAskAnarielAdvice}
-              >
-                {t("companion.advice.ask")}
-              </button>
-              <button
-                className="world-map-companion-button"
-                type="button"
-                onClick={handleOpenAnarielChat}
-              >
-                {t("companion.chat.talk")}
-              </button>
-            </aside>
-          ) : null}
-
           <div className="world-map-node-editor">
             <button
               type="button"
@@ -1332,7 +1327,7 @@ export function WorldMap({
                   {travelingTo ? t("worldMapTraveling") : t("worldMapTravel")}
                 </FantasyButton>
               )}
-              {currentNode.enterEventId ? (
+              {currentNode.enterEventId || currentNode.id === "swamp_location" ? (
                 <FantasyButton
                   onClick={handleEnterLocation}
                   disabled={isEnterDisabled}

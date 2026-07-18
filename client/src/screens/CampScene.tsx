@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SceneDialoguePanel, type SceneDialogueMessage } from "../components/SceneDialoguePanel";
-import { ANARIEL_ADVICE_PORTRAIT, isAnarielActiveCompanion } from "../data/companions/anarielAdvice";
-import { t } from "../i18n/i18n";
+import { getAnarielImageForCurrentState, isAnarielActiveCompanion } from "../data/companions/anarielVisuals";
+import { getLanguage, t } from "../i18n/i18n";
 import {
   appendDialogueMessages,
   applyAnarielToneDelta,
@@ -9,10 +9,12 @@ import {
   getAnarielAiReply,
   getFallbackReplyKey,
 } from "../systems/companions/anarielDialogue";
+import { sanitizeAiResponseForWorld } from "../systems/ai/inWorldResponseSanitizer";
 import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
 
 type CampSceneProps = {
   onOpenWorldMap: () => void;
+  onOpenInventory: () => void;
 };
 
 const CAMP_BACKGROUND = "/assets/locations/player_camp.png";
@@ -34,7 +36,7 @@ function formatHour(hour: number) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
-export function CampScene({ onOpenWorldMap }: CampSceneProps) {
+export function CampScene({ onOpenWorldMap, onOpenInventory }: CampSceneProps) {
   const loadedSave = loadGame();
   const [currentSave, setCurrentSave] = useState<GameSave | null>(loadedSave);
   const [campMessage, setCampMessage] = useState("");
@@ -44,6 +46,7 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
   const save = currentSave;
   const hasAnariel = isAnarielActiveCompanion(save);
   const anarielState = save?.companions?.anariel;
+  const anarielImage = getAnarielImageForCurrentState(save);
   const dialogueHistory = anarielState?.dialogueHistory ?? [];
   const sceneDialogueMessages: SceneDialogueMessage[] = dialogueHistory.map((message) => ({
     id: message.id,
@@ -77,8 +80,8 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
       },
     };
 
-    saveGame(nextSave);
-    setCurrentSave(nextSave);
+    saveGame(nextSave, { mode: "sleep" });
+    setCurrentSave(loadGame() ?? nextSave);
     setCampMessage(t("camp.restRecovered"));
   };
 
@@ -104,7 +107,14 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
     };
     const fallbackReply = t(getFallbackReplyKey(sourceAnariel.dialogueHistory.length));
     const aiReply = await getAnarielAiReply(saveForAi, playerText);
-    const finalAnariel = appendDialogueMessages(tonedAnariel, playerText, aiReply.usedFallback ? fallbackReply : aiReply.text);
+    const sanitizedReply = sanitizeAiResponseForWorld({
+      text: aiReply.usedFallback ? fallbackReply : aiReply.text,
+      speakerId: "anariel",
+      speakerRole: "companion",
+      language: getLanguage(),
+      context: "camp",
+    });
+    const finalAnariel = appendDialogueMessages(tonedAnariel, playerText, sanitizedReply.cleanText);
     const nextSave: GameSave = {
       ...sourceSave,
       companions: {
@@ -115,11 +125,7 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
 
     saveGame(nextSave);
     setCurrentSave(nextSave);
-    setChatNotice(
-      aiReply.usedFallback
-        ? t(aiReply.reason === "disabled" ? "companion.chat.aiDisabled" : "companion.chat.aiUnavailable")
-        : "",
-    );
+    setChatNotice(aiReply.usedFallback && aiReply.reason === "disabled" ? t("companion.chat.aiDisabled") : "");
     setIsThinking(false);
   };
 
@@ -142,7 +148,7 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
       <main className="camp-scene-panel">
         {hasAnariel ? (
           <div className="camp-scene-character" aria-hidden="true">
-            <img src={ANARIEL_ADVICE_PORTRAIT} alt="" draggable={false} />
+            <img src={anarielImage} alt="" draggable={false} />
             <span>{t("companion.anariel.name")}</span>
           </div>
         ) : null}
@@ -153,7 +159,7 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
               title={t("camp.talkInline")}
               speakerName={t("companion.anariel.name")}
               speakerRole={t("sceneDialogue.companion")}
-              speakerPortraitUrl={ANARIEL_ADVICE_PORTRAIT}
+              speakerPortraitUrl={anarielImage}
               messages={sceneDialogueMessages}
               emptyText={t("camp.anarielPresent")}
               value={chatInput}
@@ -195,6 +201,9 @@ export function CampScene({ onOpenWorldMap }: CampSceneProps) {
           {hasAnariel ? <span className="camp-scene-actions-label">{t("camp.talkInline")}</span> : null}
           <button type="button" onClick={handleRestUntilDawn}>
             {t("camp.restUntilDawn")}
+          </button>
+          <button type="button" onClick={onOpenInventory}>
+            {t("inventoryTitle")}
           </button>
           <button type="button" onClick={onOpenWorldMap}>
             {t("camp.returnToMap")}

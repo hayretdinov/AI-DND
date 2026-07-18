@@ -13,8 +13,13 @@ function getArmorBonus(inventory?: InventoryState) {
 
   return Object.values(inventory.equipment).reduce((total, itemId) => {
     const item = inventory.items.find((inventoryItem) => inventoryItem.id === itemId);
+    const itemDefense =
+      item?.armorValue ??
+      item?.bonuses?.defense ??
+      item?.stats?.defense ??
+      0;
 
-    return total + (item?.category === "armor" ? item.bonuses?.defense ?? item.stats?.defense ?? 0 : 0);
+    return total + itemDefense;
   }, 0);
 }
 
@@ -45,8 +50,9 @@ export function createPlayerCombatStats(
   const maxHealth = Math.max(1, 10 + constitutionModifier);
   const armorClass = 10 + dexterityModifier + getArmorBonus(inventory);
   const attackBonus = strengthModifier + PROFICIENCY_BONUS;
+  const minimumHealth = player.lifeState === "dead" ? 0 : 1;
   const currentHealth = Number.isFinite(existingCombat?.currentHealth)
-    ? Math.min(maxHealth, Math.max(1, Number(existingCombat?.currentHealth)))
+    ? Math.min(maxHealth, Math.max(minimumHealth, Number(existingCombat?.currentHealth)))
     : maxHealth;
 
   return {
@@ -66,10 +72,34 @@ export function createPlayerCombatStats(
 export function normalizePlayerProgression(player: PlayerCharacter, inventory?: InventoryState): PlayerCharacter {
   const training = normalizePlayerTraining(player.training);
   const combat = createPlayerCombatStats({ ...player, training }, inventory, player.combat);
+  const lifeState = player.lifeState === "dead"
+    ? "dead"
+    : player.lifeState === "robbed"
+      ? "robbed"
+      : player.lifeState === "defeated"
+        ? "defeated"
+        : "active";
 
   return {
     ...player,
     training,
     combat,
+    lifeState,
+    derivedStats: {
+      ...player.derivedStats,
+      armorClass: combat.armorClass,
+    },
   };
+}
+
+export function recalculatePlayerDefense(player: PlayerCharacter, inventory?: InventoryState): PlayerCharacter {
+  const nextPlayer = normalizePlayerProgression(player, inventory);
+
+  console.info("[Outfit] player stage changed", {
+    outfitStage: nextPlayer.currentOutfitStage,
+    armorClass: nextPlayer.combat?.armorClass,
+    defenseBonus: nextPlayer.combat?.defenseBonus,
+  });
+
+  return nextPlayer;
 }

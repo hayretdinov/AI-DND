@@ -21,6 +21,23 @@
 | Public Travel Normal Clothes | `client/public/assets/companions/anariel/anariel_travel_clothes.png` | Future Inventory companion clothing progression | later | Copied from the source asset without editing. |
 | Public Travel Armor | `client/public/assets/companions/anariel/anariel_travel_armor.png` | Future Inventory companion armor progression | later | Copied from the source asset without editing. |
 
+## Inventory Document Assets
+
+| Asset | File Path | Use | Status |
+| --- | --- | --- | --- |
+| Mage Apprentice Guide | `client/public/assets/items/documents/magic_apprentice_guide.png` | Readable inventory document and in-scene magic guide panel | added |
+| Melee Combat Beginner Guide | `client/public/assets/items/guides/melee-combat-beginner-guide.png` | Readable inventory document and dialogue context guide panel | added |
+| Crossbow and Bolts Guide | `client/public/assets/items/guides/crossbow-and-bolts-guide.png` | Readable inventory document and dialogue context guide panel for ranged combat | added |
+| Archery Basics Guide | `client/public/assets/items/guides/crossbow-and-bolts-guide.png` | Readable archery training guide item; reuses the supplied ranged combat parchment | added |
+
+## Trainer NPC Assets
+
+| Asset | File Path | Use | Status |
+| --- | --- | --- | --- |
+| Sword Master Edgar | `client/public/assets/npcs/trainers/edgar_swordmaster.png` | Central Settlement melee trainer NPC | added |
+| Archer Iara | `client/public/assets/npcs/trainers/iara_archer.png` | Central Settlement archery trainer NPC | added |
+| Magister Arkel | `client/public/assets/npcs/trainers/arkel_magister.png` | Central Settlement basic magic trainer NPC | added |
+
 ## World Map Visual Assets
 
 | Asset | File Path | Use | Status |

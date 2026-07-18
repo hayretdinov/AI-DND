@@ -81,3 +81,10 @@ These images are asset-ready only. No frontend, backend, save, combat, AI, or ev
 ### Missing Files
 
 - No additional Anariel companion visual files are required for the currently documented MVP states.
+
+## 2026-07-14 Companion Dialogue Notes
+
+- Visual hint/advice UI for Anariel was removed from WorldMap and EventScene.
+- Anariel remains a normal companion: dialogue history, relationship, location context, camp presence, scene participation, and visual progression are preserved.
+- Anariel replies pass through the in-world response sanitizer before being shown or saved.
+- Local AI technical fallback notices are not shown to the player; deterministic in-world fallback lines are saved instead.

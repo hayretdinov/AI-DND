@@ -48,6 +48,7 @@ export type EquipmentSlot =
 export type ItemStats = Partial<Record<"attack" | "defense" | "evasion" | "blockChance", number>>;
 export type InventoryItemCondition = "intact" | "worn" | "damaged" | "broken";
 export type InventoryItemQuality = "poor" | "common" | "fine";
+export type ReadableContentType = "image" | "text" | "pages";
 export type ItemEffectType =
   | "restoreHealth"
   | "restoreEnergy"
@@ -105,6 +106,11 @@ export type InventoryItem = {
   outfitStageOnEquip?: "rags" | "clothes" | "armor";
   effectType?: ItemEffectType;
   effectValue?: number;
+  readable?: boolean;
+  readContentType?: ReadableContentType;
+  readAssetId?: string;
+  readTitleKey?: string;
+  readDescriptionKey?: string;
   craftingMaterial?: boolean;
   condition?: InventoryItemCondition;
   quality?: InventoryItemQuality;
@@ -112,6 +118,7 @@ export type InventoryItem = {
   owner?: "player" | string;
   isQuestItem?: boolean;
   questItem?: boolean;
+  cannotBeStolen?: boolean;
   createdAt: string;
 };
 

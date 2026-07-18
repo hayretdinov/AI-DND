@@ -1,5 +1,33 @@
 # AI-DND Project Bible
 
+## Canonical Ardania Lore
+
+The canonical world lore is stored at `docs/lore/ARDANIA_WORLD_LORE.md`.
+
+NPC dialogue must respect Ardania canon through the Lore Keeper flow. AI-enabled NPCs receive only the lore they can plausibly know by role, profession, faction, location, education, and personal memory. Ordinary NPCs do not receive secret lore. Rumors, beliefs, and hearsay must not be presented as verified facts.
+
+Current flow:
+
+```text
+Player text -> NPC prompt builder -> Lore Keeper context -> Local AI -> Lore validation -> NPC memory -> UI
+```
+
+NPCs must remain inside Ardania and must not mention AI, prompts, APIs, computers, internet, or the real modern world.
+
+## Magic Word System
+
+Player magic is text-driven and deterministic. Magical words typed in scene chat are parsed by the local Magic Word System, validated against `player.magic`, resolved with d20 and mana costs, then shown in chat as Game Master narration. AI/NPC systems must not decide spell success, mana, damage, effects, word learning, or formula knowledge.
+
+Pure formulas are valid actions when they pass routing safety gates. `Игнис Ланца Хостис` canonicalizes to `ignis + lancea + hostis` and resolves as `fire_lance` through the normal magic/combat turn flow. Questions, lessons, history, negation, and trade mentions of magic words must not cast spells.
+
+## Text Melee Combat System
+
+Melee combat can be driven by free text in NPC scene chat. Detailed player phrases are parsed into intent, weapon, attack type, body zone, power, tempo, movement, stance, distance, and warnings. The deterministic combat engine validates equipment/training/stamina/distance, rolls d20, applies damage and injuries, updates saves, and then passes only the resolved result to Game Master narration. AI/NPC systems must not decide melee success, damage, disarm, knockdown, death, or limb loss. Text melee weapon categories are resolved by code, not AI: unarmed, sword, dagger, knife, club, mace, axe, spear, staff, hammer, shield, and improvised attacks use `meleeWeaponConfig.ts`, RuleValidator, and DiceSystem.
+
+## Turn Based Combat State
+
+Active combat uses `GameSave.activeCombat` as the authoritative turn state. It stores phase, round, initiative order, active combatant, participants, action ids, and debug log. Player actions are resolved by local combat systems first; then living enemies automatically receive their turn through the same deterministic combat layer. Game Master narration must describe results only and must not create mechanics, damage, death, or extra attacks.
+
 Краткий главный документ проекта для Codex. Перед разработкой читать этот файл вместе с актуальной задачей. Если этот файл конфликтует с полной документацией в `docs`, полная документация имеет приоритет.
 
 ## 1. Что такое AI-DND
