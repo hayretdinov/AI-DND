@@ -85,7 +85,15 @@ npm run dev
 
 ## Deployment Notes
 
-Сейчас backend не опубликован. Для frontend-only deployment на Vercel endpoint недоступен, пока содержимое `server/` не будет размещено отдельно. Публичный frontend продолжает использовать локальный mock AI mode.
+Backend опубликован отдельно от Vercel frontend на Render. Публичный frontend пока продолжает использовать локальный mock AI mode и ещё не обращается к Render endpoint.
+
+## Public Backend URL
+
+- Render URL: https://ai-dnd-5l93.onrender.com
+- Health endpoint: https://ai-dnd-5l93.onrender.com/health
+- Dialogue endpoint: `POST https://ai-dnd-5l93.onrender.com/api/ai/dialogue`
+- Текущий источник ответа остаётся `backend-mock`.
+- Endpoint готов к будущей интеграции AI-провайдера, но настоящий AI сейчас не подключён.
 
 ## Hosting Preparation
 

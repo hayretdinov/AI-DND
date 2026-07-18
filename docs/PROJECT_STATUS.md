@@ -1146,3 +1146,15 @@ Update date: 2026-07-18
 - Backend remains mock-only and no AI provider is connected.
 - Frontend remains in `mock` mode.
 - Next step: deploy the backend web service and test its public `/health` endpoint.
+
+## Backend deployed to Render
+
+Update date: 2026-07-18
+
+- Server deployed successfully to Render.
+- Public backend URL: https://ai-dnd-5l93.onrender.com
+- Health endpoint is available at https://ai-dnd-5l93.onrender.com/health
+- Dialogue endpoint is available at `POST https://ai-dnd-5l93.onrender.com/api/ai/dialogue`.
+- Backend returns mock responses only with source `backend-mock`.
+- No real AI provider is connected.
+- Frontend remains in `mock` mode.

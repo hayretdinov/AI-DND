@@ -3,15 +3,25 @@
 ## Backend Deployment Status
 
 - Frontend опубликован на Vercel: https://ai-dnd-blue.vercel.app
-- Локальная заготовка backend AI proxy находится в `server/`.
-- Backend пока не опубликован и недоступен через публичный frontend.
+- Backend AI proxy опубликован отдельно на Render: https://ai-dnd-5l93.onrender.com
+- Исходный код backend находится в `server/`.
 - Публичный frontend по умолчанию продолжает использовать безопасный mock AI mode.
 - Для настоящего backend AI потребуется отдельный hosting и защищённая серверная конфигурация.
+
+## Backend Public URL
+
+- Frontend URL: https://ai-dnd-blue.vercel.app
+- Backend URL: https://ai-dnd-5l93.onrender.com
+- Health endpoint: https://ai-dnd-5l93.onrender.com/health
+- Dialogue endpoint: `POST https://ai-dnd-5l93.onrender.com/api/ai/dialogue`
+- Frontend по умолчанию всё ещё использует локальный mock mode.
+- Опубликованный backend можно проверять отдельно от frontend.
+- Следующим этапом станет проверка backend URL и переключение frontend AI client в backend mode.
 
 ## Backend Hosting Plan
 
 - Frontend уже размещён на Vercel.
-- Backend из `server/` должен быть размещён как отдельный web service.
+- Backend из `server/` размещён как отдельный Render web service.
 - Для первого backend-теста рекомендуется Render; Railway остаётся альтернативой.
 - Опубликованный backend должен предоставлять публичный HTTPS URL для `/health` и `/api/ai/dialogue`.
 - Frontend должен оставаться в `mock` mode, пока backend URL и CORS не будут проверены.
@@ -31,9 +41,9 @@ https://ai-dnd-git-main-hayretdinov1.vercel.app
 
 ## 1. Current Deployment Target
 
-На текущем этапе публикуется только frontend игры. Это статическая сборка React/Vite из папки `client`.
+Frontend игры опубликован как статическая сборка React/Vite из папки `client`. Backend опубликован отдельно как Render web service.
 
-Backend, AI, база данных, учётные записи и серверные сохранения пока не публикуются. Файлы `server`, `shared`, `data` и `prototype` не являются частью работающего публичного сервиса.
+Backend proxy опубликован, но возвращает только mock AI responses. Настоящий AI, база данных, учётные записи и серверные сохранения пока не публикуются. Файлы `shared`, `data` и `prototype` не являются частью работающего публичного сервиса.
 
 ## 2. What Works In This Deployment
 
