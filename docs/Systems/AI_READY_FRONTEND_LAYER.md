@@ -8,9 +8,9 @@ Game Engine по-прежнему управляет состоянием мир
 
 ## Current Mode
 
-Текущий режим: `mock`.
+Текущий режим: `backend`.
 
-`requestAIDialogue` не выполняет сетевых запросов. После короткой локальной задержки сервис возвращает безопасную атмосферную реплику с флагом `isMock: true`. Для Анариэль, Dungeon Master и остальных NPC предусмотрены отдельные mock-ответы на русском и английском языках.
+`requestAIDialogue` отправляет диалог на публичный Render backend. Backend пока возвращает безопасную mock-реплику с флагом `isMock: true` и источником `backend-mock`. Если backend недоступен, frontend возвращает локальный атмосферный ответ с источником `fallback-mock`.
 
 В `EventScene` mock-сервис подключён к существующим диалоговым панелям Анариэль и NPC. Intent routing, combat, trade, social checks, sanitizer и сохранение истории продолжают выполняться существующим Game Engine.
 
@@ -28,15 +28,21 @@ Game Engine по-прежнему управляет состоянием мир
 - `client/src/screens/EventScene.tsx` - интеграция mock-ответов в существующие диалоги Анариэль и NPC.
 - `client/src/i18n/translations/ru.ts` и `client/src/i18n/translations/en.ts` - подписи mock mode.
 
-## Future Backend Integration
+## Backend Mode Enabled
 
-На следующем серверном этапе реализация `requestAIDialogue` сможет отправлять запрос:
+- Frontend теперь использует `backend` mode.
+- Backend URL: https://ai-dnd-5l93.onrender.com/api/ai/dialogue
+- Backend всё ещё возвращает только mock responses.
+- Настоящий AI не подключён.
+- При ошибке сети, CORS или недоступности Render остаётся локальный fallback mock.
+
+Frontend отправляет запрос:
 
 ```text
-POST /api/ai/dialogue
+POST https://ai-dnd-5l93.onrender.com/api/ai/dialogue
 ```
 
-Контракт `AIDialogueRequest` уже содержит идентификатор и роль говорящего, локацию, текст игрока, недавние сообщения и игровой контекст. Сейчас `fetch` не используется, endpoint не вызывается и backend не создаётся.
+Контракт `AIDialogueRequest` содержит идентификатор и роль говорящего, локацию, текст игрока, недавние сообщения и игровой контекст. URL можно переопределить будущей публичной переменной `VITE_AI_BACKEND_URL`; секреты во frontend для этого не нужны.
 
 ## Security Rules
 

@@ -1158,3 +1158,13 @@ Update date: 2026-07-18
 - Backend returns mock responses only with source `backend-mock`.
 - No real AI provider is connected.
 - Frontend remains in `mock` mode.
+
+## Frontend switched to backend AI mock mode
+
+Update date: 2026-07-19
+
+- Switched `AI_CONNECTION_MODE` to `backend`.
+- Frontend uses `https://ai-dnd-5l93.onrender.com/api/ai/dialogue`.
+- Backend remains mock-only and returns `backend-mock` responses.
+- No real AI provider is connected.
+- Local `fallback-mock` remains available when the Render backend cannot be reached.

@@ -5,7 +5,7 @@
 - Frontend опубликован на Vercel: https://ai-dnd-blue.vercel.app
 - Backend AI proxy опубликован отдельно на Render: https://ai-dnd-5l93.onrender.com
 - Исходный код backend находится в `server/`.
-- Публичный frontend по умолчанию продолжает использовать безопасный mock AI mode.
+- Публичный frontend использует backend AI mock mode и отправляет диалоги на Render endpoint.
 - Для настоящего backend AI потребуется отдельный hosting и защищённая серверная конфигурация.
 
 ## Backend Public URL
@@ -14,9 +14,10 @@
 - Backend URL: https://ai-dnd-5l93.onrender.com
 - Health endpoint: https://ai-dnd-5l93.onrender.com/health
 - Dialogue endpoint: `POST https://ai-dnd-5l93.onrender.com/api/ai/dialogue`
-- Frontend по умолчанию всё ещё использует локальный mock mode.
-- Опубликованный backend можно проверять отдельно от frontend.
-- Следующим этапом станет проверка backend URL и переключение frontend AI client в backend mode.
+- Frontend вызывает Render backend для AI dialogue.
+- Backend по-прежнему возвращает только mock responses; настоящий AI не подключён.
+- При недоступности backend frontend использует локальный fallback mock.
+- Бесплатный Render instance может переходить в спящий режим, поэтому первый ответ после простоя может быть медленным.
 
 ## Backend Hosting Plan
 
@@ -24,7 +25,7 @@
 - Backend из `server/` размещён как отдельный Render web service.
 - Для первого backend-теста рекомендуется Render; Railway остаётся альтернативой.
 - Опубликованный backend должен предоставлять публичный HTTPS URL для `/health` и `/api/ai/dialogue`.
-- Frontend должен оставаться в `mock` mode, пока backend URL и CORS не будут проверены.
+- Frontend переключён в `backend` mode после проверки backend URL и CORS.
 - Подробная инструкция находится в `docs/Systems/BACKEND_HOSTING.md`.
 
 ## Production URL

@@ -1031,9 +1031,11 @@ function getTopStatusIndicators(save: GameSave | null, npcState: NpcInstance | n
 export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpenSwampMap, onOpenInventory, onOpenJournal, onOpenSettings }: EventSceneProps) {
   const loadedSave = loadGame();
   const aiStatus = getAIStatus();
-  const aiMockNotice = aiStatus.mode === "mock"
-    ? `${t("ai.status.mockLabel")}: ${t("ai.mockWarning")}`
-    : "";
+  const aiMockNotice = aiStatus.mode === "backend"
+    ? `${t("ai.status.backendLabel")}: ${t("ai.backendMockWarning")}`
+    : aiStatus.mode === "mock"
+      ? `${t("ai.status.mockLabel")}: ${t("ai.mockWarning")}`
+      : "";
   const dynamicEvent = getDynamicEvent(loadedSave);
   const activeNpcTemplateId = loadedSave?.activeEvent?.npcTemplateId ?? loadedSave?.activeEvent?.npcId ?? dynamicEvent?.npcId;
   const activeNpc = activeNpcTemplateId ? getNpcById(activeNpcTemplateId) : null;

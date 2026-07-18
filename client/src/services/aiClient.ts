@@ -22,11 +22,18 @@ export type AIDialogueResponse = {
   actorName: string;
   text: string;
   isMock: boolean;
-  source?: "frontend-mock" | "backend-mock";
+  source?: "local-mock" | "backend-mock" | "fallback-mock";
 };
 
 const MOCK_DELAY_MS = 180;
-const AI_BACKEND_URL = "/api/ai/dialogue";
+const DEFAULT_AI_BACKEND_URL = "https://ai-dnd-5l93.onrender.com/api/ai/dialogue";
+const viteEnv = (import.meta as ImportMeta & { env?: { VITE_AI_BACKEND_URL?: string } }).env;
+const AI_BACKEND_URL = viteEnv?.VITE_AI_BACKEND_URL?.trim() || DEFAULT_AI_BACKEND_URL;
+const AI_RESPONSE_SOURCES = new Set<NonNullable<AIDialogueResponse["source"]>>([
+  "local-mock",
+  "backend-mock",
+  "fallback-mock",
+]);
 
 function getMockText(request: AIDialogueRequest) {
   const isEnglish = request.gameContext?.language === "en";
@@ -58,7 +65,37 @@ async function requestMockDialogue(request: AIDialogueRequest): Promise<AIDialog
     actorName: request.actorName,
     text: getMockText(request),
     isMock: true,
-    source: "frontend-mock",
+    source: "local-mock",
+  };
+}
+
+function getFallbackText(request: AIDialogueRequest) {
+  const isEnglish = request.gameContext?.language === "en";
+
+  if (request.actorId === "anariel") {
+    return isEnglish
+      ? "Anariel listens to the silence, but the answer is lost somewhere beyond the road. While the backend connection is unavailable, she answers carefully: \"Do not rely on voices that may disappear. Think for yourself, and I will walk beside you.\""
+      : "Анариэль вслушивается в тишину, но ответ теряется где-то за пределами дороги. Пока связь с backend недоступна, она отвечает осторожно: «Не стоит полагаться на голоса, которые могут исчезнуть. Думай сам — и я пойду рядом.»";
+  }
+
+  if (request.actorRole === "dm") {
+    return isEnglish
+      ? "The distant voice of the world fades before reaching you. The backend is temporarily unavailable, so the road answers only with wind and cautious silence."
+      : "Далёкий голос мира затихает, не успев достичь тебя. Связь с backend временно недоступна, и дорога отвечает лишь ветром и осторожной тишиной.";
+  }
+
+  return isEnglish
+    ? "The character pauses as the distant connection falls silent. The backend is temporarily unavailable, so a careful local response takes its place."
+    : "Персонаж делает паузу, когда далёкая связь обрывается. Backend временно недоступен, поэтому его заменяет осторожный локальный ответ.";
+}
+
+function requestFallbackDialogue(request: AIDialogueRequest): AIDialogueResponse {
+  return {
+    actorId: request.actorId,
+    actorName: request.actorName,
+    text: getFallbackText(request),
+    isMock: true,
+    source: "fallback-mock",
   };
 }
 
@@ -72,7 +109,8 @@ function isDialogueResponse(value: unknown): value is AIDialogueResponse {
     typeof response.actorId === "string" &&
     typeof response.actorName === "string" &&
     typeof response.text === "string" &&
-    typeof response.isMock === "boolean"
+    typeof response.isMock === "boolean" &&
+    (response.source === undefined || AI_RESPONSE_SOURCES.has(response.source))
   );
 }
 
@@ -102,7 +140,8 @@ export async function requestAIDialogue(request: AIDialogueRequest): Promise<AID
     try {
       return await requestBackendDialogue(request);
     } catch (error) {
-      console.warn("AI backend is unavailable; using the frontend mock response.", error);
+      console.warn("AI backend is unavailable; using the local fallback response.", error);
+      return requestFallbackDialogue(request);
     }
   }
 
