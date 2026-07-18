@@ -34,6 +34,31 @@ const AI_RESPONSE_SOURCES = new Set<NonNullable<AIDialogueResponse["source"]>>([
   "backend-mock",
   "fallback-mock",
 ]);
+const AI_ACTOR_ROLES = new Set<AIActorRole>(["npc", "companion", "dm", "system"]);
+
+function prepareBackendRequest(request: AIDialogueRequest): AIDialogueRequest {
+  const actorId = request.actorId.trim();
+  const actorName = request.actorName.trim();
+  const actorRole = request.actorRole;
+
+  if (!actorId || !actorName || !actorRole || !AI_ACTOR_ROLES.has(actorRole)) {
+    throw new Error("AI dialogue request is missing required actor fields");
+  }
+
+  const playerText = request.playerText.trim() || (
+    request.gameContext?.language === "en"
+      ? "Player waits silently. Respond in character."
+      : "Игрок молча ждёт. Ответь от лица персонажа."
+  );
+
+  return {
+    ...request,
+    actorId,
+    actorName,
+    actorRole,
+    playerText,
+  };
+}
 
 function getMockText(request: AIDialogueRequest) {
   const isEnglish = request.gameContext?.language === "en";
@@ -138,7 +163,7 @@ async function requestBackendDialogue(request: AIDialogueRequest) {
 export async function requestAIDialogue(request: AIDialogueRequest): Promise<AIDialogueResponse> {
   if (AI_CONNECTION_MODE === "backend") {
     try {
-      return await requestBackendDialogue(request);
+      return await requestBackendDialogue(prepareBackendRequest(request));
     } catch (error) {
       console.warn("AI backend is unavailable; using the local fallback response.", error);
       return requestFallbackDialogue(request);

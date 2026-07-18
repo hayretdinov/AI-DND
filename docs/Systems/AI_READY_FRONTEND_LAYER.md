@@ -44,6 +44,13 @@ POST https://ai-dnd-5l93.onrender.com/api/ai/dialogue
 
 Контракт `AIDialogueRequest` содержит идентификатор и роль говорящего, локацию, текст игрока, недавние сообщения и игровой контекст. URL можно переопределить будущей публичной переменной `VITE_AI_BACKEND_URL`; секреты во frontend для этого не нужны.
 
+## Initial Greeting Request Fix
+
+- Initial AI greeting Анариэль теперь отправляет валидный backend request с непустым `playerText`.
+- Ошибка HTTP `400` при открытии `AnarielIntro` исправлена на стороне frontend.
+- `aiClient` проверяет обязательные actor fields и подставляет безопасный текст, если вызывающий код передал пустой `playerText`.
+- Локальный `fallback-mock` остаётся доступен для настоящих сетевых ошибок и недоступности backend.
+
 ## Security Rules
 
 - API-ключи не хранятся во frontend.

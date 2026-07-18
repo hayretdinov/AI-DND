@@ -1423,15 +1423,22 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     setIsAnarielThinking(true);
     console.info("[AnarielIntro] initial AI greeting requested");
 
+    const language = getLanguage();
+    const initialGreetingPrompt = language === "en"
+      ? "The player meets Anariel for the first time. Say a short opening line as Anariel."
+      : "Игрок впервые встретил Анариэль. Скажи короткую стартовую реплику от лица Анариэль.";
+
     void requestAIDialogue({
       actorId: "anariel",
       actorName: t("companion.anariel.name"),
       actorRole: "companion",
       locationId: sourceSave.activeEvent?.eventId,
-      playerText: "",
+      playerText: initialGreetingPrompt,
+      recentMessages: [],
       gameContext: {
-        language: getLanguage(),
+        language,
         scene: "anariel_intro",
+        requestType: "initial_greeting",
       },
     }).then((aiReply) => {
       const parsedReply = parseAiGameCommands(aiReply.text);

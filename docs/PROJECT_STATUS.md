@@ -1168,3 +1168,13 @@ Update date: 2026-07-19
 - Backend remains mock-only and returns `backend-mock` responses.
 - No real AI provider is connected.
 - Local `fallback-mock` remains available when the Render backend cannot be reached.
+
+## Anariel initial backend greeting fix
+
+Update date: 2026-07-19
+
+- Initial AI greeting now sends a valid backend request with a non-empty `playerText`.
+- Fixed the backend HTTP `400` response when opening `AnarielIntro`.
+- Added a client-side safety check for required actor fields and silent dialogue prompts.
+- Backend validation remains unchanged.
+- Local backend fallback remains available for real network failures.
