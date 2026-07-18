@@ -1399,4 +1399,11 @@ export const ru = {
   "npc.swampGiantToad.greeting": "Жаба раздувает горло. Настил под тобой дрожит.",
   "npc.swampSerpent.name": "Болотная змея",
   "npc.swampSerpent.greeting": "Змея раскрывает пасть, и в воздухе пахнет ядом.",
+  "ai.status.mockLabel": "Режим AI-заглушки",
+  "ai.status.mockDescription": "Настоящий AI ещё не подключён. Игра использует временные атмосферные ответы.",
+  "ai.inputPlaceholder": "Напишите, что вы говорите или делаете...",
+  "ai.send": "Отправить",
+  "ai.responseTitle": "Ответ персонажа",
+  "ai.mockWarning": "Настоящий AI ещё не подключён",
+  "ai.emptyInput": "Введите сообщение перед отправкой",
 } as const;

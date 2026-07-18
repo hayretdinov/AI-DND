@@ -1366,4 +1366,11 @@ export const en = {
   "npc.swampGiantToad.greeting": "The toad swells its throat. The walkway trembles beneath you.",
   "npc.swampSerpent.name": "Swamp Serpent",
   "npc.swampSerpent.greeting": "The serpent opens its jaws, and the air smells of venom.",
+  "ai.status.mockLabel": "Mock AI Mode",
+  "ai.status.mockDescription": "Real AI is not connected yet. The game is using temporary atmospheric responses.",
+  "ai.inputPlaceholder": "Describe what you say or do...",
+  "ai.send": "Send",
+  "ai.responseTitle": "Character response",
+  "ai.mockWarning": "Real AI is not connected yet",
+  "ai.emptyInput": "Enter a message before sending",
 };

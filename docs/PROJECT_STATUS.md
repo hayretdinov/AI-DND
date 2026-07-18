@@ -1113,3 +1113,14 @@ Update date: 2026-07-18
 - Deployment URL: https://ai-dnd-git-main-hayretdinov1.vercel.app
 - Backend, AI, accounts, and server saves are not available yet.
 - Next step: first tester checklist and AI-ready frontend layer.
+
+## AI-ready frontend layer
+
+Update date: 2026-07-18
+
+- Created a frontend AI client mock layer with shared request and response contracts.
+- Real AI, LM Studio, API keys, and backend connections are not enabled.
+- External testers see safe atmospheric mock responses in existing EventScene dialogue panels.
+- Game Engine remains responsible for game state, rules, rewards, and saves.
+- Future step: implement a protected backend AI proxy for `POST /api/ai/dialogue`.
+- Build passes with `npm.cmd run build` from `client/`.

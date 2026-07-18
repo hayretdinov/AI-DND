@@ -10,8 +10,6 @@ import {
   appendAnarielMessage,
   applyAnarielToneDelta,
   analyzePlayerTone,
-  getAnarielAiReply,
-  getAnarielIntroInitialReply,
   getFallbackReplyKey,
   getIntroFallbackReplyKey,
 } from "../systems/companions/anarielDialogue";
@@ -24,6 +22,8 @@ import { getNpcById } from "../data/npcs";
 import { getSceneAssetDefinition } from "../data/sceneAssets";
 import { getTravelEventById } from "../data/travelEvents";
 import { getLanguage, t, type TranslationKey } from "../i18n/i18n";
+import { requestAIDialogue } from "../services/aiClient";
+import { getAIStatus } from "../services/aiStatus";
 import { parseAiGameCommands } from "../systems/ai/aiCommandParser";
 import { sanitizeAiResponseForWorld } from "../systems/ai/inWorldResponseSanitizer";
 import {
@@ -78,7 +78,6 @@ import {
   appendNpcGameMasterMessages,
   applyNpcToneDelta,
   createInitialNpcState,
-  getNpcAiReply,
   getNpcFallbackReplyKey,
   setNpcInstanceStatus,
 } from "../systems/npc/npcDialogueSystem";
@@ -1031,6 +1030,10 @@ function getTopStatusIndicators(save: GameSave | null, npcState: NpcInstance | n
 
 export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpenSwampMap, onOpenInventory, onOpenJournal, onOpenSettings }: EventSceneProps) {
   const loadedSave = loadGame();
+  const aiStatus = getAIStatus();
+  const aiMockNotice = aiStatus.mode === "mock"
+    ? `${t("ai.status.mockLabel")}: ${t("ai.mockWarning")}`
+    : "";
   const dynamicEvent = getDynamicEvent(loadedSave);
   const activeNpcTemplateId = loadedSave?.activeEvent?.npcTemplateId ?? loadedSave?.activeEvent?.npcId ?? dynamicEvent?.npcId;
   const activeNpc = activeNpcTemplateId ? getNpcById(activeNpcTemplateId) : null;
@@ -1418,8 +1421,18 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     setIsAnarielThinking(true);
     console.info("[AnarielIntro] initial AI greeting requested");
 
-    void getAnarielIntroInitialReply(sourceSave).then((aiReply) => {
-      const parsedReply = parseAiGameCommands(aiReply.usedFallback ? t("event.anarielIntro.aiInitialFallback1") : aiReply.text);
+    void requestAIDialogue({
+      actorId: "anariel",
+      actorName: t("companion.anariel.name"),
+      actorRole: "companion",
+      locationId: sourceSave.activeEvent?.eventId,
+      playerText: "",
+      gameContext: {
+        language: getLanguage(),
+        scene: "anariel_intro",
+      },
+    }).then((aiReply) => {
+      const parsedReply = parseAiGameCommands(aiReply.text);
       const cleanReply = parsedReply.cleanText || t("event.anarielIntro.aiInitialFallback1");
       const sanitizedReply = sanitizeAiResponseForWorld({
         text: cleanReply,
@@ -1449,7 +1462,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       saveGame(rewardResult.save);
       setChatSave(rewardResult.save);
       setRewardToast(getRewardToast(rewardResult.itemRewards, rewardResult.goldRewards));
-      setAnarielChatNotice(aiReply.usedFallback && aiReply.reason === "disabled" ? t("companion.chat.aiDisabled") : "");
+      setAnarielChatNotice("");
       setIsAnarielThinking(false);
     });
   }, [activeAnarielState?.dialogueHistory.length, currentChatSave, isAnarielIntroEvent]);
@@ -2226,20 +2239,23 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     }
 
     const tonedAnariel = applyAnarielToneDelta(sourceAnariel, analyzePlayerTone(playerText));
-    const saveForAi: GameSave = {
-      ...sourceSave,
-      companions: {
-        ...sourceSave.companions,
-        anariel: tonedAnariel,
-      },
-    };
     const fallbackReply = t(
       isAnarielIntroEvent
         ? getIntroFallbackReplyKey(sourceAnariel.dialogueHistory.length)
         : getFallbackReplyKey(sourceAnariel.dialogueHistory.length),
     );
-    const aiReply = await getAnarielAiReply(saveForAi, playerText, isAnarielIntroEvent ? "intro_prisoner" : "companion");
-    const parsedReply = parseAiGameCommands(aiReply.usedFallback ? fallbackReply : aiReply.text);
+    const aiReply = await requestAIDialogue({
+      actorId: "anariel",
+      actorName: t("companion.anariel.name"),
+      actorRole: "companion",
+      locationId: sourceSave.activeEvent?.eventId,
+      playerText,
+      gameContext: {
+        language: getLanguage(),
+        scene: isAnarielIntroEvent ? "anariel_intro" : "anariel_companion",
+      },
+    });
+    const parsedReply = parseAiGameCommands(aiReply.text);
     const cleanReply = parsedReply.cleanText || fallbackReply;
     const sanitizedReply = sanitizeAiResponseForWorld({
       text: cleanReply,
@@ -2266,9 +2282,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     saveGame(rewardResult.save);
     setChatSave(rewardResult.save);
     setRewardToast(getRewardToast(rewardResult.itemRewards, rewardResult.goldRewards));
-    setAnarielChatNotice(
-      aiReply.usedFallback && aiReply.reason === "disabled" ? t("companion.chat.aiDisabled") : "",
-    );
+    setAnarielChatNotice("");
     setIsAnarielThinking(false);
   };
 
@@ -2817,10 +2831,23 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     const socialResolution = socialType ? resolveSocialCheck(sourceSave, tonedNpc, socialType, playerText) : null;
     const resolvedNpc = socialResolution?.npc ?? tonedNpc;
     const fallbackReply = t(getNpcFallbackReplyKey(activeNpc, npcState.dialogueHistory.length) as TranslationKey);
-    let aiReply: Awaited<ReturnType<typeof getNpcAiReply>>;
+    let aiReply: Awaited<ReturnType<typeof requestAIDialogue>>;
 
     try {
-      aiReply = await getNpcAiReply(sourceSave, activeNpc, resolvedNpc, playerText);
+      aiReply = await requestAIDialogue({
+        actorId: activeNpc.id,
+        actorName: t(activeNpc.nameKey),
+        actorRole: "npc",
+        locationId: sourceSave.activeEvent?.eventId,
+        playerText,
+        gameContext: {
+          language: getLanguage(),
+          npcRole: activeNpc.role,
+          relationship: resolvedNpc.relationship,
+          trust: resolvedNpc.trust,
+          hostility: resolvedNpc.hostility,
+        },
+      });
     } catch (error) {
       console.error("[NpcChat] failed to get AI reply", error);
       setNpcChatNotice(t("dialogue.sendError"));
@@ -2828,7 +2855,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       return;
     }
 
-    const parsedReply = parseAiGameCommands(aiReply.usedFallback ? fallbackReply : aiReply.text);
+    const parsedReply = parseAiGameCommands(aiReply.text);
     const cleanReply = parsedReply.cleanText || fallbackReply;
     const sanitizedReply = sanitizeAiResponseForWorld({
       text: cleanReply,
@@ -3228,10 +3255,10 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
             headerActions={renderGuideHeaderActions()}
             isThinking={isNpcThinking}
             thinkingText={activeNpc.role === "monster" ? t("sceneDialogue.thinkingMonster") : t("sceneDialogue.thinkingNpc")}
-            notice={npcChatNotice || rewardToast}
+            notice={npcChatNotice || rewardToast || aiMockNotice}
             disabled={combatInputPolicy.disabled}
             readOnly={combatInputPolicy.readOnly}
-            inputPlaceholder={combatInputPolicy.waitingForEnemy ? t("combat.waitForEnemyTurn") : combatInputPolicy.canUseCombatInput ? t("combat.inputPlaceholder") : undefined}
+            inputPlaceholder={combatInputPolicy.waitingForEnemy ? t("combat.waitForEnemyTurn") : combatInputPolicy.canUseCombatInput ? t("combat.inputPlaceholder") : t("ai.inputPlaceholder")}
             actions={
               <>
               {isPlayerDefeated ? (
@@ -3394,7 +3421,8 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
             headerActions={renderGuideHeaderActions()}
             isThinking={isAnarielThinking}
             thinkingText={t("sceneDialogue.thinkingAnariel")}
-            notice={anarielChatNotice}
+            notice={anarielChatNotice || aiMockNotice}
+            inputPlaceholder={t("ai.inputPlaceholder")}
             stats={[
               { label: t("companion.relationship.relationship"), value: activeAnarielState.relationship },
               { label: t("companion.relationship.trust"), value: activeAnarielState.trust },
