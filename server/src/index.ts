@@ -6,11 +6,16 @@ import { aiDialogueRouter } from "./routes/aiDialogue.js";
 
 dotenv.config();
 
-const allowedOrigins = new Set([
+const allowedOrigins = new Set<string>([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://ai-dnd-blue.vercel.app",
 ]);
+
+const configuredFrontendOrigin = process.env.FRONTEND_ORIGIN?.trim().replace(/\/+$/, "");
+if (configuredFrontendOrigin) {
+  allowedOrigins.add(configuredFrontendOrigin);
+}
 
 const app = express();
 

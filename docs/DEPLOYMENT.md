@@ -8,6 +8,15 @@
 - Публичный frontend по умолчанию продолжает использовать безопасный mock AI mode.
 - Для настоящего backend AI потребуется отдельный hosting и защищённая серверная конфигурация.
 
+## Backend Hosting Plan
+
+- Frontend уже размещён на Vercel.
+- Backend из `server/` должен быть размещён как отдельный web service.
+- Для первого backend-теста рекомендуется Render; Railway остаётся альтернативой.
+- Опубликованный backend должен предоставлять публичный HTTPS URL для `/health` и `/api/ai/dialogue`.
+- Frontend должен оставаться в `mock` mode, пока backend URL и CORS не будут проверены.
+- Подробная инструкция находится в `docs/Systems/BACKEND_HOSTING.md`.
+
 ## Production URL
 
 Primary test URL:

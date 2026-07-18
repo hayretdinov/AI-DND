@@ -86,3 +86,11 @@ npm run dev
 ## Deployment Notes
 
 Сейчас backend не опубликован. Для frontend-only deployment на Vercel endpoint недоступен, пока содержимое `server/` не будет размещено отдельно. Публичный frontend продолжает использовать локальный mock AI mode.
+
+## Hosting Preparation
+
+- Backend подготовлен к отдельному размещению на Render или Railway.
+- Сервер использует выданный хостингом `process.env.PORT` с локальным fallback на порт `3001`.
+- CORS поддерживает дополнительный разрешённый origin через `FRONTEND_ORIGIN`, сохраняя локальные адреса разработки и production frontend URL.
+- В корень репозитория добавлен Render Blueprint `render.yaml`.
+- Настоящий AI по-прежнему не подключён, endpoint возвращает только backend mock response.

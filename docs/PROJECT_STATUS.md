@@ -1135,3 +1135,14 @@ Update date: 2026-07-18
 - No API keys or secrets were added.
 - Frontend default remains `mock` mode and performs no backend fetch in that mode.
 - Next step: complete local backend checks, then prepare a separate backend hosting plan.
+
+## Backend hosting preparation
+
+Update date: 2026-07-18
+
+- Prepared `server/` for separate Render or Railway hosting.
+- Added the root Render Blueprint in `render.yaml`.
+- Added configurable CORS origin support through `FRONTEND_ORIGIN` without enabling wildcard access.
+- Backend remains mock-only and no AI provider is connected.
+- Frontend remains in `mock` mode.
+- Next step: deploy the backend web service and test its public `/health` endpoint.
