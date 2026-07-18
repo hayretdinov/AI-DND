@@ -1103,3 +1103,13 @@ Update date: 2026-07-18
 - Added the Russian deployment guide at `docs/DEPLOYMENT.md`.
 - Backend, AI, database, accounts, and server saves are not implemented for this deployment stage.
 - Next step: push the project to GitHub and connect the repository to Vercel or Netlify.
+
+## Frontend deployed to Vercel
+
+Update date: 2026-07-18
+
+- Frontend successfully deployed to Vercel.
+- Production URL: https://ai-dnd-blue.vercel.app
+- Deployment URL: https://ai-dnd-git-main-hayretdinov1.vercel.app
+- Backend, AI, accounts, and server saves are not available yet.
+- Next step: first tester checklist and AI-ready frontend layer.

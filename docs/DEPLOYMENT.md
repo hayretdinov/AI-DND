@@ -1,5 +1,17 @@
 # AI-DND Deployment Guide
 
+## Production URL
+
+Primary test URL:
+
+https://ai-dnd-blue.vercel.app
+
+Preview/deployment URL:
+
+https://ai-dnd-git-main-hayretdinov1.vercel.app
+
+Это ранняя тестовая frontend-only сборка. В ней нет публичного backend, AI, аккаунтов и серверных сохранений.
+
 ## 1. Current Deployment Target
 
 На текущем этапе публикуется только frontend игры. Это статическая сборка React/Vite из папки `client`.
