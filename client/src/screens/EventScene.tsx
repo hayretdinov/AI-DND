@@ -71,6 +71,7 @@ import {
 import {
   applyBlacksmithTraining,
   applySmithingClick,
+  BLACKSMITH_MINIGAME_REWARD,
   getSmithingProgression,
   smithingStageGoals,
   startSmithingJob,
@@ -2206,6 +2207,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
 
     const result = startSmithingJob(sourceSave);
     const message = t(result.messageKey as TranslationKey);
+    setRewardToast("");
     applyBlacksmithResult(sourceSave, t("smithing.action.start"), result.save, message);
   };
 
@@ -2221,7 +2223,17 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     const rewardText = rewardTemplate
       ? ` ${formatTemplate("smithing.message.reward", { item: t(rewardTemplate.nameKey as TranslationKey) })}`
       : "";
-    const message = `${t(result.messageKey as TranslationKey)}${rewardText}`;
+    const goldText = result.rewardGold
+      ? `\n${formatTemplate("smithing.result.gold", { amount: result.rewardGold })}`
+      : "";
+    const completionText = result.completed && result.rewardGranted
+      ? `\n${t("smithing.result.satisfied")}${goldText}`
+      : "";
+    const message = `${t(result.messageKey as TranslationKey)}${completionText}${rewardText}`;
+
+    if (result.rewardGranted && result.rewardGold) {
+      setRewardToast(formatTemplate("smithing.notification.gold", { amount: result.rewardGold }));
+    }
 
     applyBlacksmithResult(sourceSave, t("smithing.action.work"), result.save, message);
   };
@@ -3215,6 +3227,18 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
                 {t(`smithing.action.${smithingJob.stage}` as TranslationKey)}
               </button>
             </>
+          ) : smithingStatus.lastRewardGold === BLACKSMITH_MINIGAME_REWARD ? (
+            <>
+              <div className="smithing-mini-game__result" role="status">
+                <strong>{t("smithing.message.completed")}</strong>
+                <span>{t("smithing.result.satisfied")}</span>
+                <span className="smithing-mini-game__gold">
+                  <img src="/assets/ui/currency/gold_coin.png" alt="" />
+                  {formatTemplate("smithing.result.gold", { amount: BLACKSMITH_MINIGAME_REWARD })}
+                </span>
+              </div>
+              <button className="merchant-confirm-button" type="button" onClick={handleStartSmithingJob}>{t("smithing.action.replay")}</button>
+            </>
           ) : (
             <button className="merchant-confirm-button" type="button" onClick={handleStartSmithingJob}>{t("smithing.action.start")}</button>
           )}
@@ -3730,6 +3754,20 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
                       </div>
                       <button className="merchant-confirm-button" type="button" onClick={handleSmithingClick}>
                         {t(`smithing.action.${smithingJob.stage}` as TranslationKey)}
+                      </button>
+                    </>
+                  ) : smithingStatus.lastRewardGold === BLACKSMITH_MINIGAME_REWARD ? (
+                    <>
+                      <div className="smithing-mini-game__result" role="status">
+                        <strong>{t("smithing.message.completed")}</strong>
+                        <span>{t("smithing.result.satisfied")}</span>
+                        <span className="smithing-mini-game__gold">
+                          <img src="/assets/ui/currency/gold_coin.png" alt="" />
+                          {formatTemplate("smithing.result.gold", { amount: BLACKSMITH_MINIGAME_REWARD })}
+                        </span>
+                      </div>
+                      <button className="merchant-confirm-button" type="button" onClick={handleStartSmithingJob}>
+                        {t("smithing.action.replay")}
                       </button>
                     </>
                   ) : (

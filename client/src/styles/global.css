@@ -7605,6 +7605,34 @@ button {
   accent-color: #d49a4f;
 }
 
+.smithing-mini-game__result {
+  display: grid;
+  gap: 5px;
+  color: #e8d3aa;
+  line-height: 1.35;
+}
+
+.smithing-mini-game__result > strong {
+  color: #f4d691;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.smithing-mini-game__gold {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #f1c86f;
+  font-weight: 700;
+}
+
+.smithing-mini-game__gold img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
 .event-scene--merchant-scene {
   height: 100dvh;
   overflow: hidden;
