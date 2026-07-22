@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SceneDialoguePanel, type SceneDialogueMessage } from "../components/SceneDialoguePanel";
 import { getAnarielImageForCurrentState, isAnarielActiveCompanion } from "../data/companions/anarielVisuals";
 import { getLanguage, t } from "../i18n/i18n";
@@ -10,6 +10,13 @@ import {
   getFallbackReplyKey,
 } from "../systems/companions/anarielDialogue";
 import { sanitizeAiResponseForWorld } from "../systems/ai/inWorldResponseSanitizer";
+import {
+  applyCampRestHealthRecovery,
+  CAMP_REST_HOURS,
+  getCampRestHealthRecovery,
+  hasActiveBleeding,
+  isActiveCombat,
+} from "../systems/resources/resourceRegeneration";
 import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
 
 type CampSceneProps = {
@@ -21,7 +28,6 @@ const CAMP_BACKGROUND = "/assets/locations/player_camp.png";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
 const DEFAULT_DAY = 1;
 const DEFAULT_HOUR = 6;
-const REST_HOURS = 8;
 
 function advanceWorldTime(day: number, hour: number, addedHours: number) {
   const totalHours = hour + addedHours;
@@ -42,7 +48,9 @@ export function CampScene({ onOpenWorldMap, onOpenInventory }: CampSceneProps) {
   const [campMessage, setCampMessage] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [isResting, setIsResting] = useState(false);
   const [chatNotice, setChatNotice] = useState("");
+  const isRestingRef = useRef(false);
   const save = currentSave;
   const hasAnariel = isAnarielActiveCompanion(save);
   const anarielState = save?.companions?.anariel;
@@ -59,17 +67,44 @@ export function CampScene({ onOpenWorldMap, onOpenInventory }: CampSceneProps) {
   const energyPercent = Math.min(100, Math.max(0, (currentEnergy / maxEnergy) * 100));
   const currentDay = save?.currentDay ?? DEFAULT_DAY;
   const currentHour = save?.currentHour ?? DEFAULT_HOUR;
+  const healthRecovery = save ? getCampRestHealthRecovery(save) : null;
+  const healthPercent = healthRecovery?.maxHealth
+    ? Math.min(100, Math.max(0, (healthRecovery.currentHealth / healthRecovery.maxHealth) * 100))
+    : 0;
+  const restBlockedReason = !save
+    ? t("camp.restUnavailable")
+    : isResting
+      ? t("camp.alreadyResting")
+      : isActiveCombat(save)
+        ? t("camp.cannotRestInCombat")
+        : healthRecovery && healthRecovery.currentHealth <= 0
+          ? t("camp.cannotRestWhenDefeated")
+          : hasActiveBleeding(save)
+            ? t("camp.cannotRestWhileBleeding")
+            : "";
 
   const handleRestUntilDawn = () => {
     const sourceSave = loadGame() ?? save;
 
-    if (!sourceSave) {
+    if (
+      !sourceSave
+      || isRestingRef.current
+      || isActiveCombat(sourceSave)
+      || (sourceSave.player.combat?.currentHealth ?? 0) <= 0
+      || hasActiveBleeding(sourceSave)
+    ) {
       return;
     }
 
+    isRestingRef.current = true;
+    setIsResting(true);
     const nextMaxEnergy = sourceSave.travelEnergy?.maxEnergy ?? DEFAULT_TRAVEL_ENERGY_MAX;
-    const nextTime = advanceWorldTime(sourceSave.currentDay ?? DEFAULT_DAY, sourceSave.currentHour ?? DEFAULT_HOUR, REST_HOURS);
-    const nextSave: GameSave = {
+    const nextTime = advanceWorldTime(
+      sourceSave.currentDay ?? DEFAULT_DAY,
+      sourceSave.currentHour ?? DEFAULT_HOUR,
+      CAMP_REST_HOURS,
+    );
+    const timedSave: GameSave = {
       ...sourceSave,
       currentDay: nextTime.day,
       currentHour: nextTime.hour,
@@ -79,10 +114,18 @@ export function CampScene({ onOpenWorldMap, onOpenInventory }: CampSceneProps) {
         lastRestDay: nextTime.day,
       },
     };
+    const nextSave = applyCampRestHealthRecovery(timedSave);
+    const result = getCampRestHealthRecovery(sourceSave);
 
-    saveGame(nextSave, { mode: "sleep" });
+    saveGame(nextSave, { mode: "sleep", skipHealthRecovery: true });
     setCurrentSave(loadGame() ?? nextSave);
-    setCampMessage(t("camp.restRecovered"));
+    setCampMessage(
+      `${t("camp.restRecovered")} +${result.recovery} ${t("camp.healthPointsShort")} (${result.nextHealth}/${result.maxHealth}).`,
+    );
+    window.setTimeout(() => {
+      isRestingRef.current = false;
+      setIsResting(false);
+    }, 600);
   };
 
   const handleSendAnarielMessage = async () => {
@@ -195,12 +238,29 @@ export function CampScene({ onOpenWorldMap, onOpenInventory }: CampSceneProps) {
           <div className="camp-scene-energy-bar" aria-hidden="true">
             <span style={{ width: `${energyPercent}%` }} />
           </div>
+          {healthRecovery ? (
+            <div className="camp-scene-health-summary">
+              <div>
+                <span>{t("camp.health")}</span>
+                <strong>{healthRecovery.currentHealth} / {healthRecovery.maxHealth}</strong>
+              </div>
+              <div className="camp-scene-health-bar" aria-hidden="true">
+                <span style={{ width: `${healthPercent}%` }} />
+              </div>
+              <dl>
+                <div><dt>{t("camp.afterRest")}</dt><dd>{healthRecovery.nextHealth} / {healthRecovery.maxHealth}</dd></div>
+                <div><dt>{t("camp.expectedRecovery")}</dt><dd>+{healthRecovery.recovery} {t("camp.healthPointsShort")}</dd></div>
+                <div><dt>{t("camp.restDuration")}</dt><dd>{CAMP_REST_HOURS} {t("camp.hoursShort")}</dd></div>
+              </dl>
+              {restBlockedReason ? <p className="camp-scene-rest-blocked">{restBlockedReason}</p> : null}
+            </div>
+          ) : null}
         </aside>
 
         <nav className="camp-scene-actions" aria-label={t("event.ui.choicePanel")}>
           {hasAnariel ? <span className="camp-scene-actions-label">{t("camp.talkInline")}</span> : null}
-          <button type="button" onClick={handleRestUntilDawn}>
-            {t("camp.restUntilDawn")}
+          <button type="button" onClick={handleRestUntilDawn} disabled={Boolean(restBlockedReason)} title={restBlockedReason || undefined}>
+            {isResting ? t("camp.resting") : t("camp.restEightHours")}
           </button>
           <button type="button" onClick={onOpenInventory}>
             {t("inventoryTitle")}

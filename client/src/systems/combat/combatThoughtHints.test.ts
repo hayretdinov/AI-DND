@@ -94,3 +94,9 @@ assert(
   ids(baseContext({ postCombatState: "npcDefeatedAlive" })).includes("post-combat-talk"),
   "Post-combat defeated NPC should suggest dialogue or surrender demand.",
 );
+const defeatedMonsterHints = ids(baseContext({
+  postCombatState: "enemyDead",
+  target: combatant({ id: "monster", side: "enemy", entityType: "monster", alive: false, conscious: false, canAct: false }),
+}));
+assert(defeatedMonsterHints.includes("post-combat-monster-loot"), "A defeated monster should suggest carcass loot actions.");
+assert(!defeatedMonsterHints.includes("post-combat-talk"), "A defeated monster should not suggest surrender dialogue.");

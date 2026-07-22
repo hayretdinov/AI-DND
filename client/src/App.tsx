@@ -9,6 +9,10 @@ import { MainMenu } from "./screens/MainMenu";
 import { Settings } from "./screens/Settings";
 import { SwampMapScene } from "./screens/SwampMapScene";
 import { WorldMap } from "./screens/WorldMap";
+import {
+  MobileBottomNavigation,
+  type MobileNavigationSection,
+} from "./components/mobile/MobileBottomNavigation";
 import { createInitialAnarielCompanionState, hasSave, isGameOverSave, loadGame, saveGame } from "./systems/save/saveSystem";
 import { addPlayerGold } from "./systems/save/saveSystem";
 import { getTravelEventById, TRAVEL_EVENT_CHANCE } from "./data/travelEvents";
@@ -43,6 +47,7 @@ import {
 } from "./systems/smithing/smithingSystem";
 import type { Language } from "./i18n/languages";
 import type { InventoryReturnTarget, ScreenName } from "./types/navigation";
+import type { InventoryCategory } from "./types/inventory";
 
 function inventoryTargetToScreen(target: InventoryReturnTarget): ScreenName {
   if (target === "merchantScene") {
@@ -62,6 +67,8 @@ export default function App() {
   const [language, setLanguageState] = useState<Language>(() => getLanguage());
   const [lastInventorySource, setLastInventorySource] = useState<InventoryReturnTarget | null>(null);
   const [lastActiveScene, setLastActiveScene] = useState<InventoryReturnTarget>("worldMap");
+  const [mobileInventorySection, setMobileInventorySection] = useState<"character" | "inventory" | "skills">("inventory");
+  const [inventoryCategory, setInventoryCategory] = useState<InventoryCategory>("all");
 
   const backToMenu = () => setScreen("mainMenu");
   const refreshSaveState = () => setSaveVersion((version) => version + 1);
@@ -73,6 +80,7 @@ export default function App() {
     setScreen(nextScreen);
   };
   const openInventory = (source: InventoryReturnTarget) => {
+    setMobileInventorySection("inventory");
     setLastInventorySource(source);
     setLastActiveScene(source);
     setScreen("inventory");
@@ -97,6 +105,23 @@ export default function App() {
 
     refreshSaveState();
     setScreen(shouldOpenCityMap ? "cityMap" : shouldOpenSwampMap ? "swampMap" : "worldMap");
+  };
+  const handleMobileNavigation = (section: MobileNavigationSection) => {
+    if (section === "character" || section === "inventory" || section === "skills") {
+      setMobileInventorySection(section);
+      if (screen !== "inventory") {
+        setLastInventorySource(lastActiveScene);
+        setScreen("inventory");
+      }
+      return;
+    }
+
+    if (section === "map") {
+      openMapFromInventory();
+      return;
+    }
+
+    setScreen(section === "quests" ? "journal" : "settings");
   };
   const continueGame = () => {
     const save = loadGame();
@@ -689,10 +714,20 @@ export default function App() {
     };
   }, []);
 
+  const showMobileNavigation = Boolean(loadGame()) && ["worldMap", "inventory", "journal", "settings"].includes(screen);
+  const activeMobileSection: MobileNavigationSection =
+    screen === "inventory"
+      ? mobileInventorySection
+      : screen === "journal"
+        ? "quests"
+        : screen === "settings"
+          ? "settings"
+          : "map";
+
   return (
     <main className="app-shell">
       <div className="app-shell__backdrop" />
-      <div className="app-shell__content">
+      <div className={showMobileNavigation ? "app-shell__content app-shell__content--mobile-navigation" : "app-shell__content"}>
         {screen === "mainMenu" ? (
           <MainMenu
             hasSave={hasSave()}
@@ -764,6 +799,7 @@ export default function App() {
               refreshSaveState();
               openScreen("swampMap");
             }}
+            onMobileNavigate={handleMobileNavigation}
           />
         ) : null}
         {screen === "campScene" ? (
@@ -781,6 +817,9 @@ export default function App() {
             onOpenMap={openMapFromInventory}
             onOpenJournal={() => setScreen("journal")}
             onOpenSettings={() => setScreen("settings")}
+            mobileSection={mobileInventorySection}
+            selectedCategory={inventoryCategory}
+            onSelectedCategoryChange={setInventoryCategory}
           />
         ) : null}
         {screen === "journal" ? <Journal onBackToMenu={backToMenu} /> : null}
@@ -790,6 +829,9 @@ export default function App() {
             onBackToMenu={backToMenu}
             onLanguageChange={changeLanguage}
           />
+        ) : null}
+        {showMobileNavigation ? (
+          <MobileBottomNavigation activeSection={activeMobileSection} onNavigate={handleMobileNavigation} />
         ) : null}
       </div>
     </main>

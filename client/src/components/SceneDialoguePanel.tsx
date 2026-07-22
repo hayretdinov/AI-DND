@@ -7,6 +7,7 @@ export type SceneDialogueMessage = {
   speaker: "player" | "npc" | "game_master" | "combat" | "system";
   text: string;
   speakerName: string;
+  createdAt?: string | number;
 };
 
 type SceneDialoguePanelProps = {

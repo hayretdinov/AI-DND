@@ -1,10 +1,11 @@
 import { createDefaultInventoryState } from "../../data/inventoryMockData";
 import { getItemTemplateById, type ItemId } from "../../data/itemRegistry";
 import type { InventoryItem } from "../../types/inventory";
-import type { GameSave } from "../save/saveSystem";
+import { addPlayerGold, type GameSave } from "../save/saveSystem";
 import type { SmithingJobState, SmithingProgressionState, SmithingStage } from "./smithingTypes";
 
 export const BLACKSMITH_DULTRAN_ID = "central_blacksmith_dultran";
+export const BLACKSMITH_MINIGAME_REWARD = 25;
 
 export const smithingStageGoals: Record<SmithingStage, number> = {
   heat: 3,
@@ -20,6 +21,7 @@ export function createDefaultSmithingProgression(): SmithingProgressionState {
     hasBasicTraining: false,
     miniGameUnlocked: false,
     completedJobs: 0,
+    rewardedAttemptIds: [],
   };
 }
 
@@ -38,7 +40,11 @@ export function normalizeSmithingProgression(value: unknown): SmithingProgressio
     miniGameUnlocked: Boolean(source.miniGameUnlocked ?? source.hasBasicTraining),
     completedJobs: Number.isFinite(source.completedJobs) ? Math.max(0, Math.floor(Number(source.completedJobs))) : 0,
     currentJob,
+    rewardedAttemptIds: Array.isArray(source.rewardedAttemptIds)
+      ? Array.from(new Set(source.rewardedAttemptIds.filter((attemptId): attemptId is string => typeof attemptId === "string"))).slice(-50)
+      : [],
     lastRewardItemId: typeof source.lastRewardItemId === "string" ? source.lastRewardItemId : undefined,
+    lastRewardGold: Number.isFinite(source.lastRewardGold) ? Math.max(0, Math.floor(Number(source.lastRewardGold))) : undefined,
     lastTrainedByNpcId: typeof source.lastTrainedByNpcId === "string" ? source.lastTrainedByNpcId : undefined,
   };
 }
@@ -56,6 +62,9 @@ function normalizeSmithingJob(value: unknown): SmithingJobState | undefined {
   const stage = normalizeSmithingStage(source.stage);
 
   return {
+    attemptId: typeof source.attemptId === "string" && source.attemptId
+      ? source.attemptId
+      : `legacy_smithing_${typeof source.startedAt === "string" ? source.startedAt : "unknown"}`,
     stage,
     progress: Number.isFinite(source.progress)
       ? Math.min(smithingStageGoals[stage], Math.max(0, Math.floor(Number(source.progress))))
@@ -147,6 +156,7 @@ export function startSmithingJob(save: GameSave) {
   }
 
   const currentJob: SmithingJobState = {
+    attemptId: `smithing_attempt_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
     stage: "heat",
     progress: 0,
     startedAt: new Date().toISOString(),
@@ -175,11 +185,11 @@ export function applySmithingClick(save: GameSave) {
     return { ok: false, save, completed: false, messageKey: "smithing.message.locked" };
   }
 
-  const job: SmithingJobState = smithing.currentJob ?? {
-    stage: "heat",
-    progress: 0,
-    startedAt: new Date().toISOString(),
-  };
+  const job = smithing.currentJob;
+
+  if (!job) {
+    return { ok: false, save, completed: false, messageKey: "smithing.message.noActiveJob" };
+  }
   const nextProgress = job.progress + 1;
   const goal = smithingStageGoals[job.stage];
 
@@ -211,9 +221,9 @@ export function applySmithingClick(save: GameSave) {
 
   if (nextStage) {
     const nextJob: SmithingJobState = {
+      ...job,
       stage: nextStage,
       progress: 0,
-      startedAt: job.startedAt,
     };
 
     return {
@@ -236,13 +246,40 @@ export function applySmithingClick(save: GameSave) {
     };
   }
 
+  if (smithing.rewardedAttemptIds.includes(job.attemptId)) {
+    return {
+      ok: false,
+      completed: true,
+      rewardGranted: false,
+      attemptId: job.attemptId,
+      save: {
+        ...save,
+        player: {
+          ...save.player,
+          smithing: {
+            ...smithing,
+            currentJob: undefined,
+          },
+        },
+      },
+      messageKey: "smithing.message.rewardAlreadyClaimed",
+    };
+  }
+
   const rewardItemId = smithingRewardCycle[smithing.completedJobs % smithingRewardCycle.length];
-  const rewardedSave = addSmithingReward(save, rewardItemId);
+  const rewardedSave = addPlayerGold(
+    addSmithingReward(save, rewardItemId),
+    BLACKSMITH_MINIGAME_REWARD,
+    `smithing_minigame_${job.attemptId}`,
+  );
 
   return {
     ok: true,
     completed: true,
+    rewardGranted: true,
+    attemptId: job.attemptId,
     rewardItemId,
+    rewardGold: BLACKSMITH_MINIGAME_REWARD,
     save: {
       ...rewardedSave,
       player: {
@@ -251,7 +288,9 @@ export function applySmithingClick(save: GameSave) {
           ...smithing,
           currentJob: undefined,
           completedJobs: smithing.completedJobs + 1,
+          rewardedAttemptIds: [...smithing.rewardedAttemptIds, job.attemptId].slice(-50),
           lastRewardItemId: rewardItemId,
+          lastRewardGold: BLACKSMITH_MINIGAME_REWARD,
         },
       },
     },

@@ -212,14 +212,19 @@ export function generateCombatThoughtHints(context: CombatHintContext): CombatTh
   const postCombatState = context.postCombatState ?? "";
 
   if (POST_COMBAT_STATES.has(postCombatState)) {
+    const defeatedMonster = context.target?.entityType === "monster";
     addHint(hints, {
-      id: "post-combat-talk",
-      textKey: postCombatState === "dead" || postCombatState === "enemyDead"
-        ? "thought.combatHint.postCombatDead"
-        : "thought.combatHint.postCombatAlive",
-      exampleKey: postCombatState === "dead" || postCombatState === "enemyDead"
-        ? "thought.combatHint.example.searchBody"
-        : "thought.combatHint.example.demandSurrender",
+      id: defeatedMonster ? "post-combat-monster-loot" : "post-combat-talk",
+      textKey: defeatedMonster
+        ? "thought.combatHint.postCombatMonster"
+        : postCombatState === "dead" || postCombatState === "enemyDead"
+          ? "thought.combatHint.postCombatDead"
+          : "thought.combatHint.postCombatAlive",
+      exampleKey: defeatedMonster
+        ? "thought.combatHint.example.searchMonster"
+        : postCombatState === "dead" || postCombatState === "enemyDead"
+          ? "thought.combatHint.example.searchBody"
+          : "thought.combatHint.example.demandSurrender",
       priority: 100,
       category: "postCombat",
     });

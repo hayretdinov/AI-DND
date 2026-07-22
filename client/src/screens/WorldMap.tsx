@@ -56,11 +56,16 @@ type WorldMapProps = {
 };
 
 type NodeStatus = "current" | "available" | "locked" | "distant";
+type MapPanelState = "hidden" | "collapsed" | "expanded";
 type ActiveTravelSegment = {
   fromId: WorldMapNodeId;
   toId: WorldMapNodeId;
 };
 type MapEditorPosition = {
+  x: number;
+  y: number;
+};
+type MapPointerPosition = {
   x: number;
   y: number;
 };
@@ -80,7 +85,12 @@ const WALKING_SPEED_MULTIPLIER = 1;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.15;
-const DRAG_THRESHOLD_PX = 5;
+const DRAG_THRESHOLD_PX = 7;
+const WORLD_MAP_BUILD_ENV = (import.meta as ImportMeta & {
+  env?: Record<string, string | boolean | undefined>;
+}).env;
+const IS_WORLD_MAP_EDITOR_ENABLED =
+  WORLD_MAP_BUILD_ENV?.DEV === true && WORLD_MAP_BUILD_ENV.VITE_ENABLE_WORLD_MAP_EDITOR === "true";
 
 const worldMapIconAssets: Record<WorldMapIconType, string> = {
   northwest_winter_city: "/assets/world-map/icons/northwest_winter_city.png",
@@ -265,7 +275,6 @@ export function WorldMap({
   onOpenJournal,
   onBackToMenu,
 }: WorldMapProps) {
-  void saveVersion;
   void onOpenCityMap;
 
   const save = loadGame();
@@ -300,6 +309,12 @@ export function WorldMap({
   const [isDragging, setIsDragging] = useState(false);
   const [isPlayerPortraitFailed, setIsPlayerPortraitFailed] = useState(false);
   const [isNodeEditorOpen, setIsNodeEditorOpen] = useState(false);
+  const [isMobileLegendOpen, setIsMobileLegendOpen] = useState(false);
+  const [currentPanelState, setCurrentPanelState] = useState<MapPanelState>("collapsed");
+  const [selectedPanelState, setSelectedPanelState] = useState<MapPanelState>("hidden");
+  const [isMobileSelectedPanelCollapsed, setIsMobileSelectedPanelCollapsed] = useState(false);
+  const [isMobileRouteDetailsOpen, setIsMobileRouteDetailsOpen] = useState(false);
+  const [failedMobileLocationImageId, setFailedMobileLocationImageId] = useState<WorldMapNodeId | null>(null);
   const [lastEditorClick, setLastEditorClick] = useState<MapEditorPosition | null>(null);
   const [editorSelectedNodeId, setEditorSelectedNodeId] = useState<WorldMapNodeId>(initialLocationId);
   const [previewNodePositions, setPreviewNodePositions] = useState<Partial<Record<WorldMapNodeId, MapEditorPosition>>>(
@@ -307,15 +322,20 @@ export function WorldMap({
   );
   const [editorClipboardText, setEditorClipboardText] = useState("");
   const [editorCopyStatus, setEditorCopyStatus] = useState("");
+  const mapViewportRef = useRef<HTMLElement | null>(null);
   const mapCanvasRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({
     pointerId: -1,
+    pressedNodeId: null as WorldMapNodeId | null,
     startX: 0,
     startY: 0,
     startPanX: 0,
     startPanY: 0,
     hasDragged: false,
   });
+  const activePointersRef = useRef(new Map<number, MapPointerPosition>());
+  const pinchStateRef = useRef({ active: false, startDistance: 0, startZoom: 1 });
+  const lastTapRef = useRef({ time: 0, x: 0, y: 0 });
 
   const connectedNodeIds = useMemo(() => getConnectedNodeIds(currentLocationId), [currentLocationId]);
   const worldMapDataWarnings = useMemo(() => validateWorldMapData(), []);
@@ -326,6 +346,13 @@ export function WorldMap({
   const anarielDialogueHistory = activeAnarielState?.dialogueHistory ?? [];
   const currentNode = getWorldMapNodeById(currentLocationId);
   const selectedNode = getWorldMapNodeById(selectedNodeId);
+  const selectedNodeTitle = translateMapKey(selectedNode.titleKey) || selectedNode.id;
+  const translatedSelectedNodeDescription = translateMapKey(selectedNode.descriptionKey).trim();
+  const selectedNodeDescription =
+    translatedSelectedNodeDescription && translatedSelectedNodeDescription !== selectedNode.descriptionKey
+      ? translatedSelectedNodeDescription
+      : t("worldMapDescriptionUnavailable");
+  const selectedNodeImageUrl = selectedNode.iconType ? worldMapIconAssets[selectedNode.iconType] : "";
   const playerGold = getPlayerGold(save);
   const editorSelectedNode = getWorldMapNodeById(editorSelectedNodeId);
   const editorSelectedRoutes = useMemo(
@@ -391,6 +418,30 @@ export function WorldMap({
   }, [worldMapDataWarnings]);
 
   useEffect(() => {
+    if (travelingTo) {
+      return;
+    }
+
+    const latestSave = loadGame();
+    const latestLocationId = latestSave?.currentLocationId;
+
+    if (!latestSave || !isWorldMapNodeId(latestLocationId)) {
+      return;
+    }
+
+    const latestNode = getWorldMapNodeById(latestLocationId);
+    setChatSave(latestSave);
+    setCurrentLocationId(latestLocationId);
+    setSelectedNodeId(latestLocationId);
+    setMarkerPosition({ x: latestNode.x, y: latestNode.y });
+    setTravelPath([]);
+    setCurrentTravelStepIndex(0);
+    setActiveTravelSegment(null);
+    setActiveTravelSegmentDelayMs(0);
+    setPendingRandomTravelEventId("");
+  }, [saveVersion]);
+
+  useEffect(() => {
     setIsPlayerPortraitFailed(false);
   }, [playerPortraitUrl]);
 
@@ -420,8 +471,36 @@ export function WorldMap({
     setIsPlayerPortraitFailed(true);
   };
 
+  const clampPanToViewport = (nextPan: { x: number; y: number }, nextZoom = zoom) => {
+    const viewport = mapViewportRef.current;
+    const canvas = mapCanvasRef.current;
+
+    if (!viewport || !canvas) {
+      return nextPan;
+    }
+
+    const maxPanX = Math.max(0, (canvas.offsetWidth * nextZoom - viewport.clientWidth) / 2);
+    const maxPanY = Math.max(0, (canvas.offsetHeight * nextZoom - viewport.clientHeight) / 2);
+
+    return {
+      x: clamp(nextPan.x, -maxPanX, maxPanX),
+      y: clamp(nextPan.y, -maxPanY, maxPanY),
+    };
+  };
+
+  useEffect(() => {
+    const handleViewportResize = () => {
+      setPan((currentPan) => clampPanToViewport(currentPan));
+    };
+
+    window.addEventListener("resize", handleViewportResize);
+    return () => window.removeEventListener("resize", handleViewportResize);
+  }, [zoom]);
+
   const updateZoom = (nextZoom: number) => {
-    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
+    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+    setZoom(clampedZoom);
+    setPan((currentPan) => clampPanToViewport(currentPan, clampedZoom));
   };
 
   const handleZoomIn = () => updateZoom(zoom + ZOOM_STEP);
@@ -429,6 +508,22 @@ export function WorldMap({
   const handleResetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  };
+  const handleCenterCurrentLocation = () => {
+    const viewport = mapViewportRef.current;
+    const canvas = mapCanvasRef.current;
+
+    if (!viewport || !canvas) {
+      return;
+    }
+
+    const currentPosition = getWorldMapNodeById(currentLocationId);
+    setPan(
+      clampPanToViewport({
+        x: ((50 - currentPosition.x) / 100) * canvas.offsetWidth * zoom,
+        y: ((50 - currentPosition.y) / 100) * canvas.offsetHeight * zoom,
+      }),
+    );
   };
   const handleOpenAnarielChat = () => {
     if (!showAnarielCompanionPanel) {
@@ -488,23 +583,60 @@ export function WorldMap({
   };
 
   const handleMapPointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (event.button !== 0) {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (activePointersRef.current.size === 2) {
+      const [firstPointer, secondPointer] = Array.from(activePointersRef.current.values());
+      pinchStateRef.current = {
+        active: true,
+        startDistance: Math.hypot(secondPointer.x - firstPointer.x, secondPointer.y - firstPointer.y),
+        startZoom: zoom,
+      };
+      dragStateRef.current.hasDragged = true;
+      dragStateRef.current.pressedNodeId = null;
+      setIsDragging(true);
+      return;
+    }
+
+    if (dragStateRef.current.pointerId !== -1) {
       return;
     }
 
     dragStateRef.current = {
       pointerId: event.pointerId,
+      pressedNodeId: (event.target as HTMLElement).closest<HTMLElement>("[data-world-map-node-id]")
+        ?.dataset.worldMapNodeId as WorldMapNodeId | undefined ?? null,
       startX: event.clientX,
       startY: event.clientY,
       startPanX: pan.x,
       startPanY: pan.y,
       hasDragged: false,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
     setIsDragging(true);
   };
 
   const handleMapPointerMove = (event: PointerEvent<HTMLElement>) => {
+    if (activePointersRef.current.has(event.pointerId)) {
+      activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    if (pinchStateRef.current.active && activePointersRef.current.size >= 2) {
+      const [firstPointer, secondPointer] = Array.from(activePointersRef.current.values());
+      const distance = Math.hypot(secondPointer.x - firstPointer.x, secondPointer.y - firstPointer.y);
+
+      if (pinchStateRef.current.startDistance > 0) {
+        event.preventDefault();
+        updateZoom(pinchStateRef.current.startZoom * (distance / pinchStateRef.current.startDistance));
+      }
+      return;
+    }
+
     const dragState = dragStateRef.current;
 
     if (!isDragging || dragState.pointerId !== event.pointerId) {
@@ -520,18 +652,42 @@ export function WorldMap({
     }
 
     if (dragState.hasDragged) {
-      setPan({ x: dragState.startPanX + deltaX, y: dragState.startPanY + deltaY });
+      event.preventDefault();
+      setPan(clampPanToViewport({ x: dragState.startPanX + deltaX, y: dragState.startPanY + deltaY }));
     }
   };
 
   const handleMapPointerEnd = (event: PointerEvent<HTMLElement>) => {
-    const dragState = dragStateRef.current;
-    const shouldCaptureEditorClick =
-      event.type === "pointerup" && isNodeEditorOpen && dragState.pointerId === event.pointerId && !dragState.hasDragged;
+    const wasPinching = pinchStateRef.current.active;
+    activePointersRef.current.delete(event.pointerId);
 
-    if (dragState.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+
+    if (wasPinching) {
+      if (activePointersRef.current.size < 2) {
+        pinchStateRef.current.active = false;
+        setIsDragging(false);
+        dragStateRef.current.pointerId = -1;
+        dragStateRef.current.pressedNodeId = null;
+        window.setTimeout(() => {
+          dragStateRef.current.hasDragged = false;
+        }, 0);
+      }
+      return;
+    }
+
+    const dragState = dragStateRef.current;
+    if (dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const shouldCaptureEditorClick =
+      event.type === "pointerup" && isNodeEditorOpen && dragState.pointerId === event.pointerId && !dragState.hasDragged;
+    const pressedNodeId = dragState.pressedNodeId;
+    const shouldSelectNode =
+      event.type === "pointerup" && Boolean(pressedNodeId) && !dragState.hasDragged && !travelingTo;
 
     if (shouldCaptureEditorClick) {
       const canvasRect = mapCanvasRef.current?.getBoundingClientRect();
@@ -545,7 +701,38 @@ export function WorldMap({
       }
     }
 
+    if (shouldSelectNode && pressedNodeId) {
+      if (isNodeEditorOpen) {
+        setEditorSelectedNodeId(pressedNodeId);
+        setEditorCopyStatus("");
+      } else {
+        if (pressedNodeId !== selectedNodeId) {
+          setIsMobileSelectedPanelCollapsed(false);
+          setIsMobileRouteDetailsOpen(false);
+          setFailedMobileLocationImageId(null);
+        }
+        setSelectedNodeId(pressedNodeId);
+        setSelectedPanelState("expanded");
+        setArrivalMessage("");
+      }
+    }
+
+    if (event.type === "pointerup" && event.pointerType === "touch" && !pressedNodeId && !dragState.hasDragged) {
+      const now = Date.now();
+      const lastTap = lastTapRef.current;
+      const isDoubleTap = now - lastTap.time < 320 && Math.hypot(event.clientX - lastTap.x, event.clientY - lastTap.y) < 32;
+
+      if (isDoubleTap) {
+        updateZoom(zoom + ZOOM_STEP * 2);
+        lastTapRef.current.time = 0;
+      } else {
+        lastTapRef.current = { time: now, x: event.clientX, y: event.clientY };
+      }
+    }
+
     setIsDragging(false);
+    dragState.pointerId = -1;
+    dragState.pressedNodeId = null;
     window.setTimeout(() => {
       dragStateRef.current.hasDragged = false;
     }, 0);
@@ -561,13 +748,14 @@ export function WorldMap({
       return;
     }
 
+    if (nodeId !== selectedNodeId) {
+      setIsMobileSelectedPanelCollapsed(false);
+      setIsMobileRouteDetailsOpen(false);
+      setFailedMobileLocationImageId(null);
+    }
     setSelectedNodeId(nodeId);
+    setSelectedPanelState("expanded");
     setArrivalMessage("");
-  };
-
-  const handleNodePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    dragStateRef.current.hasDragged = false;
   };
 
   const handleNodeClick = (event: MouseEvent<HTMLButtonElement>, nodeId: WorldMapNodeId) => {
@@ -808,7 +996,11 @@ export function WorldMap({
 
     const lastReachedNode = getWorldMapNodeById(lastReachedNodeId);
     const didReachTarget = lastReachedNodeId === selectedNodeId;
-    setSelectedNodeId(didReachTarget ? lastReachedNodeId : selectedNodeId);
+    const latestSave = loadGame();
+    setChatSave(latestSave);
+    setCurrentLocationId(lastReachedNodeId);
+    setSelectedNodeId(lastReachedNodeId);
+    setMarkerPosition({ x: lastReachedNode.x, y: lastReachedNode.y });
     setTravelingTo(null);
     setTravelPath([]);
     setCurrentTravelStepIndex(0);
@@ -882,6 +1074,7 @@ export function WorldMap({
       {save ? (
         <div className="world-map-screen">
           <div className="world-map-ui-top" aria-label={t("worldMapTopPanel")}>
+            <h1 className="world-map-mobile-title">{t("worldMapTitle")}</h1>
             <div className="world-map-ui-top-content">
               <div>
                 <span>{t("worldMapDay")}</span>
@@ -941,10 +1134,6 @@ export function WorldMap({
                 }}
               />
             </div>
-            <button type="button" className="world-map-nav-button world-map-nav-button--active">
-              <span className="map-fallback-icon">M</span>
-              <span>{t("worldMapTitle")}</span>
-            </button>
             <button type="button" className="world-map-nav-button" onClick={onOpenInventory}>
               <img
                 src={`${WORLD_MAP_UI_PATH}inventory_icon.png`}
@@ -965,19 +1154,16 @@ export function WorldMap({
               />
               <span>{t("journalTitle")}</span>
             </button>
-            <button type="button" className="world-map-nav-button" disabled>
-              <img
-                src={`${WORLD_MAP_UI_PATH}settings_icon.png`}
-                alt=""
-                onError={(event) => {
-                  event.currentTarget.hidden = true;
-                }}
-              />
-              <span>{t("settingsTitle")}</span>
-            </button>
+            {showAnarielCompanionPanel ? (
+              <button type="button" className="world-map-nav-button" onClick={handleOpenAnarielChat}>
+                <span className="map-fallback-icon">A</span>
+                <span>{t("companion.anariel.name")}</span>
+              </button>
+            ) : null}
           </nav>
 
           <section
+            ref={mapViewportRef}
             className={["world-map-viewport", isDragging ? "world-map-viewport--dragging" : ""]
               .filter(Boolean)
               .join(" ")}
@@ -986,7 +1172,7 @@ export function WorldMap({
             onPointerMove={handleMapPointerMove}
             onPointerUp={handleMapPointerEnd}
             onPointerCancel={handleMapPointerEnd}
-            onPointerLeave={handleMapPointerEnd}
+            onLostPointerCapture={handleMapPointerEnd}
             onWheel={handleMapWheel}
           >
             <div
@@ -1001,6 +1187,7 @@ export function WorldMap({
                   src={WORLD_MAP_ASSET_PATH}
                   alt=""
                   draggable={false}
+                  onDragStart={(event) => event.preventDefault()}
                   onError={(event) => {
                     event.currentTarget.hidden = true;
                   }}
@@ -1061,9 +1248,9 @@ export function WorldMap({
                       .filter(Boolean)
                       .join(" ")}
                     style={{ left: `${nodePosition.x}%`, top: `${nodePosition.y}%` }}
+                    data-world-map-node-id={node.id}
                     role="button"
                     tabIndex={0}
-                    onPointerDown={handleNodePointerDown}
                     onClick={(event) => handleNodeClick(event, node.id)}
                     onKeyDown={(event) => handleNodeKeyDown(event, node.id)}
                     aria-label={`${title}: ${getStatusLabel(status)}`}
@@ -1073,8 +1260,9 @@ export function WorldMap({
                       {node.iconType ? (
                         <img
                           src={worldMapIconAssets[node.iconType]}
-                          alt=""
-                          draggable={false}
+                           alt=""
+                           draggable={false}
+                           onDragStart={(event) => event.preventDefault()}
                           onError={(event) => {
                             event.currentTarget.hidden = true;
                           }}
@@ -1110,6 +1298,15 @@ export function WorldMap({
           </section>
 
           <div className="world-map-zoom-controls" aria-label={t("worldMapZoomControls")}>
+            <button
+              className="world-map-mobile-control"
+              type="button"
+              onClick={handleCenterCurrentLocation}
+              aria-label={t("worldMapCenterCurrent")}
+              title={t("worldMapCenterCurrent")}
+            >
+              C
+            </button>
             <button type="button" onClick={handleZoomIn} aria-label={t("worldMapZoomIn")}>
               +
             </button>
@@ -1119,8 +1316,42 @@ export function WorldMap({
             <button type="button" onClick={handleResetView} aria-label={t("worldMapZoomReset")}>
               {t("worldMapZoomReset")}
             </button>
+            <button
+              className="world-map-mobile-control"
+              type="button"
+              onClick={() => setIsMobileLegendOpen(true)}
+              aria-label={t("worldMapLegend")}
+              title={t("worldMapLegend")}
+            >
+              i
+            </button>
           </div>
 
+          {isMobileLegendOpen ? (
+            <div className="world-map-mobile-legend" role="dialog" aria-modal="true" aria-label={t("worldMapLegend")}>
+              <button
+                className="world-map-mobile-legend__backdrop"
+                type="button"
+                onClick={() => setIsMobileLegendOpen(false)}
+                aria-label={t("event.ui.close")}
+              />
+              <section>
+                <header>
+                  <h2>{t("worldMapLegend")}</h2>
+                  <button type="button" onClick={() => setIsMobileLegendOpen(false)} aria-label={t("event.ui.close")}>x</button>
+                </header>
+                <ul>
+                  <li><i className="world-map-legend-marker world-map-legend-marker--current" />{t("worldMapLegendCurrent")}</li>
+                  <li><i className="world-map-legend-marker world-map-legend-marker--available" />{t("worldMapLegendAvailable")}</li>
+                  <li><i className="world-map-legend-marker world-map-legend-marker--locked" />{t("worldMapLegendLocked")}</li>
+                  <li><i className="world-map-legend-marker world-map-legend-marker--danger" />{t("worldMapLegendDanger")}</li>
+                  <li><i className="world-map-legend-marker world-map-legend-marker--camp" />{t("worldMapLegendCamp")}</li>
+                </ul>
+              </section>
+            </div>
+          ) : null}
+
+          {IS_WORLD_MAP_EDITOR_ENABLED ? (
           <div className="world-map-node-editor">
             <button
               type="button"
@@ -1243,76 +1474,217 @@ export function WorldMap({
               </div>
             ) : null}
           </div>
+          ) : null}
 
-          <aside className="world-map-ui-right" aria-live="polite">
-            <p className="world-map-info__eyebrow">{t("traveler")}</p>
-            <h2>{save.player.name}</h2>
-            <div className="world-map-info__current">
-              <span>{t("worldMapCurrentLocation")}</span>
-              <strong>{translateMapKey(currentNode.titleKey)}</strong>
-            </div>
+          <div className="world-map-panel-tabs" aria-label={t("worldMapPanelControls")}>
+            {currentPanelState === "hidden" ? (
+              <button type="button" onClick={() => setCurrentPanelState("collapsed")}>
+                {t("worldMapShowCurrentLocation")}
+              </button>
+            ) : null}
+            {selectedPanelState === "hidden" && selectedNodeId !== currentLocationId ? (
+              <button type="button" onClick={() => setSelectedPanelState("collapsed")}>
+                {t("worldMapShowSelectedLocation")}
+              </button>
+            ) : null}
+          </div>
 
-            <div className="world-map-info__location">
-              <p className="world-map-info__eyebrow">{t("worldMapSelectedLocation")}</p>
-              <h3>{translateMapKey(selectedNode.titleKey)}</h3>
-              <p>{translateMapKey(selectedNode.descriptionKey)}</p>
-              <dl>
-                <div>
-                  <dt>{t("worldMapLocationStatus")}</dt>
-                  <dd>{getStatusLabel(selectedStatus)}</dd>
-                </div>
-                <div>
-                  <dt>{t("worldMapDangerLevel")}</dt>
-                  <dd>{selectedPathDangerLevel ?? "-"}</dd>
-                </div>
-                <div>
-                  <dt>{t("worldMapTravelCost")}</dt>
-                  <dd>{selectedTravelCost ?? "-"}</dd>
-                </div>
-                <div>
-                  <dt>{t("worldMapTravelTime")}</dt>
-                  <dd>{selectedTravelTimeHours ?? "-"}</dd>
-                </div>
-                {travelingTo && travelPath.length > 1 ? (
-                  <>
-                    {activeTravelSegment ? (
-                      <div>
-                        <dt>{t("worldMapTravelSegment")}</dt>
-                        <dd>{activeTravelSegmentLabel}</dd>
-                      </div>
-                    ) : null}
+          {currentPanelState !== "hidden" || selectedPanelState !== "hidden" ? (
+            <aside className="world-map-ui-right" aria-live="polite">
+              {currentPanelState !== "hidden" ? (
+                <section id="world-map-current-panel" className={`world-map-context-panel world-map-context-panel--${currentPanelState}`}>
+                  <header className="world-map-context-panel__header">
                     <div>
-                      <dt>{t("worldMapPathProgress")}</dt>
-                      <dd>
-                        {currentTravelStepIndex}/{travelPath.length - 1}
-                      </dd>
+                      <span>{t("worldMapCurrentLocation")}</span>
+                      <strong>{translateMapKey(currentNode.titleKey)}</strong>
+                      <small>{t("worldMapTravelEnergy")}: {travelEnergy} / {initialMaxEnergy}</small>
                     </div>
+                    <div className="world-map-context-panel__controls">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPanelState((state) => (state === "expanded" ? "collapsed" : "expanded"))}
+                        aria-label={currentPanelState === "expanded" ? t("worldMapPanelCollapse") : t("worldMapPanelExpand")}
+                        aria-expanded={currentPanelState === "expanded"}
+                        aria-controls="world-map-current-panel-body"
+                        title={currentPanelState === "expanded" ? t("worldMapPanelCollapse") : t("worldMapPanelExpand")}
+                      >
+                        {currentPanelState === "expanded" ? "-" : "+"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPanelState("hidden")}
+                        aria-label={t("worldMapPanelClose")}
+                        title={t("worldMapPanelClose")}
+                      >
+                        x
+                      </button>
+                    </div>
+                  </header>
+                  {currentPanelState === "expanded" ? (
+                    <div id="world-map-current-panel-body" className="world-map-context-panel__body">
+                      <p>{translateMapKey(currentNode.descriptionKey)}</p>
+                      <span>{save.player.name}</span>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {selectedPanelState !== "hidden" ? (
+                <section id="world-map-selected-panel" className={`world-map-context-panel world-map-context-panel--${selectedPanelState}`}>
+                  <header className="world-map-context-panel__header">
                     <div>
-                      <dt>{t("worldMapMovingToNextPoint")}</dt>
-                      <dd>
-                        {translateMapKey(
-                          getWorldMapNodeById(
-                            travelPath[Math.min(currentTravelStepIndex, travelPath.length - 1)],
-                          ).titleKey,
-                        )}
-                      </dd>
+                      <span>{t("worldMapSelectedLocation")}</span>
+                      <strong>{translateMapKey(selectedNode.titleKey)}</strong>
                     </div>
-                  </>
+                    <div className="world-map-context-panel__controls">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPanelState((state) => (state === "expanded" ? "collapsed" : "expanded"))}
+                        aria-label={selectedPanelState === "expanded" ? t("worldMapPanelCollapse") : t("worldMapPanelExpand")}
+                        aria-expanded={selectedPanelState === "expanded"}
+                        aria-controls="world-map-selected-panel-body"
+                        title={selectedPanelState === "expanded" ? t("worldMapPanelCollapse") : t("worldMapPanelExpand")}
+                      >
+                        {selectedPanelState === "expanded" ? "-" : "+"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPanelState("hidden")}
+                        aria-label={t("worldMapPanelClose")}
+                        title={t("worldMapPanelClose")}
+                      >
+                        x
+                      </button>
+                    </div>
+                  </header>
+                  {selectedPanelState === "expanded" ? (
+                    <div id="world-map-selected-panel-body" className="world-map-context-panel__body world-map-info__location">
+                      <p>{translateMapKey(selectedNode.descriptionKey)}</p>
+                      <dl>
+                        <div><dt>{t("worldMapLocationStatus")}</dt><dd>{getStatusLabel(selectedStatus)}</dd></div>
+                        <div><dt>{t("worldMapDangerLevel")}</dt><dd>{selectedPathDangerLevel ?? "-"}</dd></div>
+                        <div><dt>{t("worldMapTravelCost")}</dt><dd>{selectedTravelCost ?? "-"}</dd></div>
+                        <div><dt>{t("worldMapTravelTime")}</dt><dd>{selectedTravelTimeHours ?? "-"}</dd></div>
+                        {travelingTo && travelPath.length > 1 ? (
+                          <>
+                            {activeTravelSegment ? <div><dt>{t("worldMapTravelSegment")}</dt><dd>{activeTravelSegmentLabel}</dd></div> : null}
+                            <div><dt>{t("worldMapPathProgress")}</dt><dd>{currentTravelStepIndex}/{travelPath.length - 1}</dd></div>
+                            <div>
+                              <dt>{t("worldMapMovingToNextPoint")}</dt>
+                              <dd>{translateMapKey(getWorldMapNodeById(travelPath[Math.min(currentTravelStepIndex, travelPath.length - 1)]).titleKey)}</dd>
+                            </div>
+                          </>
+                        ) : null}
+                      </dl>
+                      {!hasPathToSelectedNode ? <p className="world-map-info__warning">{t("worldMapPathNotFound")}</p> : null}
+                      {shouldShowNoEnergyWarning ? <p className="world-map-info__warning">{t("worldMapNotEnoughEnergy")}</p> : null}
+                      {shouldShowPartialEnergyWarning ? <p className="world-map-info__warning">{t("worldMapPartialEnergyWarning")}</p> : null}
+                      {arrivalMessage ? <p className="world-map-info__arrival">{arrivalMessage}</p> : null}
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+            </aside>
+          ) : null}
+
+          {selectedPanelState !== "hidden" ? (
+            <aside
+              className={[
+                "world-map-mobile-location-card",
+                isMobileSelectedPanelCollapsed ? "world-map-mobile-location-card--collapsed" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              aria-live="polite"
+            >
+              <button
+                type="button"
+                className="world-map-mobile-location-card__toggle"
+                onClick={() => setIsMobileSelectedPanelCollapsed((collapsed) => !collapsed)}
+                aria-expanded={!isMobileSelectedPanelCollapsed}
+                aria-controls="world-map-mobile-location-card-body"
+                aria-label={
+                  isMobileSelectedPanelCollapsed ? t("worldMapPanelExpand") : t("worldMapPanelCollapse")
+                }
+              >
+                <span aria-hidden="true">{isMobileSelectedPanelCollapsed ? "▲" : "▼"}</span>
+                <strong>{selectedNodeTitle}</strong>
+              </button>
+
+              <div
+                id="world-map-mobile-location-card-body"
+                className="world-map-mobile-location-card__body"
+                aria-hidden={isMobileSelectedPanelCollapsed}
+              >
+                <div className="world-map-mobile-location-card__summary">
+                  <div className="world-map-mobile-location-card__thumbnail" aria-hidden="true">
+                    {selectedNodeImageUrl && failedMobileLocationImageId !== selectedNode.id ? (
+                      <img
+                        src={selectedNodeImageUrl}
+                        alt=""
+                        onError={() => setFailedMobileLocationImageId(selectedNode.id)}
+                      />
+                    ) : (
+                      <span>{selectedNode.icon || "?"}</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="world-map-mobile-location-card__terrain">
+                      {t(
+                        selectedNode.type === "camp_point"
+                          ? "worldMapTerrainCamp"
+                          : selectedNode.type === "danger_point"
+                            ? "worldMapTerrainDanger"
+                            : "worldMapTerrainLocation",
+                      )}
+                    </span>
+                    <p>{selectedNodeDescription}</p>
+                  </div>
+                </div>
+
+                <dl className="world-map-mobile-location-card__facts">
+                  <div>
+                    <dt>{t("worldMapTravelCost")}</dt>
+                    <dd>{selectedTravelCost ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>{t("worldMapDangerLevel")}</dt>
+                    <dd>{selectedPathDangerLevel ?? "-"}</dd>
+                  </div>
+                </dl>
+
+                {isMobileRouteDetailsOpen ? (
+                  <div className="world-map-mobile-location-card__details">
+                    <dl>
+                      <div><dt>{t("worldMapLocationStatus")}</dt><dd>{getStatusLabel(selectedStatus)}</dd></div>
+                      <div><dt>{t("worldMapTravelTime")}</dt><dd>{selectedTravelTimeHours ?? "-"}</dd></div>
+                    </dl>
+                    {!hasPathToSelectedNode ? <p className="world-map-info__warning">{t("worldMapPathNotFound")}</p> : null}
+                    {shouldShowNoEnergyWarning ? <p className="world-map-info__warning">{t("worldMapNotEnoughEnergy")}</p> : null}
+                    {shouldShowPartialEnergyWarning ? <p className="world-map-info__warning">{t("worldMapPartialEnergyWarning")}</p> : null}
+                  </div>
                 ) : null}
-              </dl>
-            </div>
 
-            {!hasPathToSelectedNode ? (
-              <p className="world-map-info__warning">{t("worldMapPathNotFound")}</p>
-            ) : null}
-            {shouldShowNoEnergyWarning ? (
-              <p className="world-map-info__warning">{t("worldMapNotEnoughEnergy")}</p>
-            ) : null}
-            {shouldShowPartialEnergyWarning ? (
-              <p className="world-map-info__warning">{t("worldMapPartialEnergyWarning")}</p>
-            ) : null}
-            {arrivalMessage ? <p className="world-map-info__arrival">{arrivalMessage}</p> : null}
-          </aside>
+                <div className="world-map-mobile-location-card__actions">
+                  {selectedStatus === "current" ? (
+                    <p className="world-map-info__here">{t("worldMapYouAreHere")}</p>
+                  ) : (
+                    <FantasyButton onClick={handleTravel} disabled={!canTravel} variant="primary">
+                      {travelingTo ? t("worldMapTraveling") : t("worldMapTravel")}
+                    </FantasyButton>
+                  )}
+                  <button
+                    type="button"
+                    className="world-map-mobile-location-card__details-button"
+                    onClick={() => setIsMobileRouteDetailsOpen((open) => !open)}
+                    aria-expanded={isMobileRouteDetailsOpen}
+                  >
+                    {isMobileRouteDetailsOpen ? t("worldMapHideDetails") : t("worldMapDetails")}
+                  </button>
+                </div>
+              </div>
+            </aside>
+          ) : null}
 
           <div className="world-map-ui-bottom">
             <div className="world-map-ui-bottom-content">
@@ -1320,13 +1692,18 @@ export function WorldMap({
                 <span>{t("worldMapCurrentLocation")}</span>
                 <strong>{translateMapKey(currentNode.titleKey)}</strong>
               </div>
-              {selectedStatus === "current" ? (
+              {selectedPanelState !== "hidden" && selectedStatus === "current" ? (
                 <p className="world-map-info__here">{t("worldMapYouAreHere")}</p>
-              ) : (
-                <FantasyButton onClick={handleTravel} disabled={!canTravel} variant="primary">
+              ) : selectedPanelState !== "hidden" && selectedNodeId !== currentLocationId ? (
+                <FantasyButton
+                  onClick={handleTravel}
+                  disabled={!canTravel}
+                  variant="primary"
+                  className="world-map-travel-button"
+                >
                   {travelingTo ? t("worldMapTraveling") : t("worldMapTravel")}
                 </FantasyButton>
-              )}
+              ) : null}
               {currentNode.enterEventId || currentNode.id === "swamp_location" ? (
                 <FantasyButton
                   onClick={handleEnterLocation}

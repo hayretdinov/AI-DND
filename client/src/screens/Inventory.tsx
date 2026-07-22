@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ReadableImageViewer } from "../components/MagicGuideAccess";
 import { createDefaultInventoryState } from "../data/inventoryMockData";
 import { getAnarielImageForCurrentState, ANARIEL_TRAVEL_RAGS_IMAGE } from "../data/companions/anarielVisuals";
@@ -20,6 +20,9 @@ type InventoryProps = {
   onOpenMap: () => void;
   onOpenJournal: () => void;
   onOpenSettings: () => void;
+  mobileSection?: "character" | "inventory" | "skills";
+  selectedCategory?: InventoryCategory;
+  onSelectedCategoryChange?: (category: InventoryCategory) => void;
 };
 
 type InventorySort = "recent" | "name" | "weight" | "value" | "quantity" | "rarity";
@@ -46,6 +49,16 @@ const categoryTabs: Array<{ id: InventoryCategory; labelKey: TranslationKey; ico
   { id: "quest", labelKey: "inventoryCategoryQuest", icon: "⚿" },
   { id: "misc", labelKey: "inventoryCategoryMisc", icon: "◇" },
 ];
+
+const mobileCategoryIds = new Set<InventoryCategory>([
+  "all",
+  "weapon",
+  "armor",
+  "consumable",
+  "material",
+  "quest",
+  "misc",
+]);
 
 const equipmentSlots: Array<{ id: EquipmentSlot; labelKey: TranslationKey; className: string }> = [
   { id: "head", labelKey: "inventorySlotHead", className: "inventory-equipment-slot--head" },
@@ -269,7 +282,15 @@ function canUseInventoryItem(item: InventoryItem | null) {
   return Boolean(item?.readable || item?.canUse || item?.effectType);
 }
 
-export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }: InventoryProps) {
+export function Inventory({
+  onClose,
+  onOpenMap,
+  onOpenJournal,
+  onOpenSettings,
+  mobileSection = "inventory",
+  selectedCategory: controlledSelectedCategory,
+  onSelectedCategoryChange,
+}: InventoryProps) {
   const loadedSave = loadGame();
   const [currentSave, setCurrentSave] = useState<GameSave | null>(loadedSave);
   const [inventory, setInventory] = useState<InventoryState>(() => loadedSave?.inventory ?? createDefaultInventoryState());
@@ -277,7 +298,7 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
   const player = currentSave?.player;
   const items = inventory.items;
   const equipment = inventory.equipment;
-  const [selectedCategory, setSelectedCategory] = useState<InventoryCategory>("all");
+  const [localSelectedCategory, setLocalSelectedCategory] = useState<InventoryCategory>(controlledSelectedCategory ?? "all");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(items[0]?.id ?? null);
   const [selectedSlotId, setSelectedSlotId] = useState<EquipmentSlot | null>(null);
   const [sortBy, setSortBy] = useState<InventorySort>("recent");
@@ -285,6 +306,28 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
   const [inventoryMessage, setInventoryMessage] = useState("");
   const [readableItem, setReadableItem] = useState<InventoryItem | null>(null);
+  const [mobileItemDetailsOpen, setMobileItemDetailsOpen] = useState(false);
+  const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
+  const mobileDrawerRef = useRef<HTMLElement | null>(null);
+  const selectedCategory = controlledSelectedCategory ?? localSelectedCategory;
+
+  const selectCategory = (category: InventoryCategory) => {
+    setLocalSelectedCategory(category);
+    onSelectedCategoryChange?.(category);
+  };
+
+  useEffect(() => {
+    if (mobileSection === "inventory") {
+      setMobileStatsOpen(false);
+      return;
+    }
+
+    setMobileStatsOpen(true);
+    window.setTimeout(() => {
+      const targetSelector = mobileSection === "skills" ? ".training-skills-panel" : ".inventory-hero-card";
+      mobileDrawerRef.current?.querySelector<HTMLElement>(targetSelector)?.scrollIntoView({ block: "start" });
+    }, 0);
+  }, [mobileSection]);
 
   const equippedItemIds = useMemo(() => new Set(Object.values(equipment).filter(Boolean)), [equipment]);
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
@@ -329,6 +372,12 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
   const criticalDamage = 140 + dexterity * 2;
   const evasion = Math.max(8, dexterity + 10);
   const blockChance = Math.max(5, Math.round((strength + constitution) / 2));
+  const currentHealth = player?.combat?.currentHealth ?? health;
+  const maxHealth = player?.combat?.maxHealth ?? health;
+  const currentMana = player?.magic?.mana ?? 0;
+  const maxMana = player?.magic?.maxMana ?? 0;
+  const healthRatio = Math.min(100, Math.max(0, (currentHealth / Math.max(1, maxHealth)) * 100));
+  const manaRatio = Math.min(100, Math.max(0, (currentMana / Math.max(1, maxMana)) * 100));
   const showAnariel = shouldShowAnarielCompanion(currentSave);
   const anarielInventoryImage = getAnarielInventoryImage(currentSave);
   const training = player?.training;
@@ -580,7 +629,7 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
   };
 
   return (
-    <section className="inventory-screen" aria-labelledby="inventory-title">
+    <section className={mobileStatsOpen ? "inventory-screen inventory-screen--mobile-stats-open" : "inventory-screen"} aria-labelledby="inventory-title">
       <header className="inventory-top-nav inventory-top-nav--removed" aria-hidden="true">
         <h1 id="inventory-title" className="inventory-screen__title">
           {t("inventoryTitle")}
@@ -618,8 +667,50 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
         </div>
       </header>
 
+      <header className="inventory-mobile-header">
+        <div className="inventory-mobile-profile">
+          <div className="inventory-mobile-avatar" aria-hidden="true">
+            {player?.portraitUrl ? (
+              <img src={player.portraitUrl} alt="" draggable={false} />
+            ) : (
+              <span>{player?.name.slice(0, 1).toUpperCase() ?? "A"}</span>
+            )}
+          </div>
+          <div className="inventory-mobile-profile__copy">
+            <strong>{player?.name ?? t("traveler")}</strong>
+            <span>{t("inventoryLevel")} {level} · {t(getClassKey(player))}</span>
+            <div className="inventory-mobile-resource inventory-mobile-resource--health">
+              <i style={{ width: `${healthRatio}%` }} />
+              <span>{currentHealth} / {maxHealth}</span>
+            </div>
+            <div className="inventory-mobile-resource inventory-mobile-resource--mana">
+              <i style={{ width: `${manaRatio}%` }} />
+              <span>{currentMana} / {maxMana}</span>
+            </div>
+          </div>
+        </div>
+        <div className="inventory-mobile-currencies" aria-label={t("inventoryResources")}>
+          <span><b>G</b>{inventory.gold.toLocaleString()}</span>
+          <span><b>S</b>1,250</span>
+        </div>
+        <button className="inventory-mobile-close" type="button" onClick={onClose} aria-label={t("event.ui.close")}>×</button>
+        <div className="inventory-mobile-titlebar">
+          <h1>{t("inventoryTitle")}</h1>
+          <span className={isOverloaded ? "inventory-mobile-weight inventory-mobile-weight--overloaded" : "inventory-mobile-weight"}>
+            {currentWeight.toFixed(1)} / {maxWeight.toFixed(1)} kg
+          </span>
+        </div>
+      </header>
+
       <div className="inventory-layout">
-        <aside className="inventory-left-panel">
+        <aside
+          ref={mobileDrawerRef}
+          className={mobileStatsOpen ? "inventory-left-panel inventory-left-panel--mobile-open" : "inventory-left-panel"}
+        >
+          <div className="inventory-mobile-drawer-heading">
+            <h2>{t("attributes")}</h2>
+            <button type="button" onClick={() => setMobileStatsOpen(false)} aria-label={t("event.ui.close")}>×</button>
+          </div>
           <div className="inventory-hero-card">
             <span className="inventory-hero-card__crest" aria-hidden="true">
               AI
@@ -824,6 +915,7 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
                   <button
                     key={slot.id}
                     type="button"
+                    data-slot={slot.id}
                     className={[
                       "inventory-equipment-slot",
                       slot.className,
@@ -841,7 +933,12 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
                     }}
                   >
                     <span>{t(slot.labelKey)}</span>
-                    <strong>{equippedItem ? equippedItem.icon : t("inventoryEmptySlot")}</strong>
+                    <strong>
+                      <span className="inventory-equipment-slot__fallback">
+                        {equippedItem ? equippedItem.icon : t("inventoryEmptySlot")}
+                      </span>
+                      {equippedItem?.iconUrl ? <img src={equippedItem.iconUrl} alt="" draggable={false} /> : null}
+                    </strong>
                   </button>
                 );
               })}
@@ -853,6 +950,25 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
             <span>☥</span>
             <span>◇</span>
           </div>
+          <aside className="inventory-mobile-quick-stats" aria-label={t("attributes")}>
+            <h2>{t("attributes")}</h2>
+            <dl>
+              <div><dt>STR</dt><dd>{attributes?.strength ?? 10}</dd></div>
+              <div><dt>VIT</dt><dd>{attributes?.constitution ?? 10}</dd></div>
+              <div><dt>DEX</dt><dd>{attributes?.dexterity ?? 10}</dd></div>
+              <div><dt>INT</dt><dd>{attributes?.intelligence ?? 10}</dd></div>
+              <div><dt>WIS</dt><dd>{attributes?.wisdom ?? 10}</dd></div>
+              <div><dt>CHA</dt><dd>{attributes?.charisma ?? 10}</dd></div>
+            </dl>
+            <h3>{t("inventoryDefense")}</h3>
+            <dl>
+              <div><dt>{t("inventoryArmorClass")}</dt><dd>{armorClass}</dd></div>
+              <div><dt>{t("inventoryDefense")}</dt><dd>{defense}</dd></div>
+              <div><dt>{t("inventoryEvasion")}</dt><dd>{evasion}%</dd></div>
+              <div><dt>{t("inventoryBlockChance")}</dt><dd>{blockChance}%</dd></div>
+            </dl>
+            <button type="button" onClick={() => setMobileStatsOpen(true)}>{t("inventoryMoreDetails")}</button>
+          </aside>
         </section>
 
         <aside className="inventory-right-panel">
@@ -863,15 +979,18 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
                 type="button"
                 className={[
                   "inventory-grid-tab",
+                  mobileCategoryIds.has(category.id) ? "" : "inventory-grid-tab--mobile-hidden",
                   selectedCategory === category.id ? "inventory-grid-tab--active" : "",
                   selectedCategory === category.id ? "inventory-tab-active" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                onClick={() => setSelectedCategory(category.id)}
+                onClick={() => selectCategory(category.id)}
                 aria-label={t(category.labelKey)}
+                aria-pressed={selectedCategory === category.id}
               >
-                {category.icon}
+                <span aria-hidden="true">{category.icon}</span>
+                <small>{t(category.labelKey)}</small>
               </button>
             ))}
           </div>
@@ -897,7 +1016,10 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onClick={() => setSelectedItemId(item.id)}
+                  onClick={() => {
+                    setSelectedItemId(item.id);
+                    setMobileItemDetailsOpen(true);
+                  }}
                   onMouseEnter={(event) => {
                     setHoveredItemId(item.id);
                     setTooltipPosition({ x: event.clientX, y: event.clientY });
@@ -925,9 +1047,10 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
             })}
           </div>
 
-          <div className="inventory-item-details">
+          <div className={mobileItemDetailsOpen ? "inventory-item-details inventory-item-details--mobile-open" : "inventory-item-details"}>
             {selectedItem ? (
               <>
+                <button className="inventory-mobile-modal-close" type="button" onClick={() => setMobileItemDetailsOpen(false)} aria-label={t("event.ui.close")}>×</button>
                 <div>
                   <h2>{translate(selectedItem.nameKey)}</h2>
                   <p>{translate(selectedItem.descriptionKey)}</p>
@@ -1035,6 +1158,9 @@ export function Inventory({ onClose, onOpenMap, onOpenJournal, onOpenSettings }:
                   </button>
                   <button className="inventory-action-button inventory-action-button--danger" type="button" onClick={handleDropItem} disabled={!selectedItem || selectedItem.isQuestItem}>
                     {t("inventoryDrop")}
+                  </button>
+                  <button className="inventory-action-button inventory-mobile-cancel-action" type="button" onClick={() => setMobileItemDetailsOpen(false)}>
+                    {t("inventoryCancel")}
                   </button>
                 </div>
               </>

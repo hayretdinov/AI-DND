@@ -17,7 +17,9 @@ Stages:
 - `hammer`: 5 clicks
 - `quench`: 2 clicks
 
-Completing all stages increments `completedJobs` and grants a small reward from the smithing reward cycle.
+Completing all stages increments `completedJobs`, grants 25 gold through the shared player wallet, and grants a small item reward from the smithing reward cycle.
+
+Each job receives a unique attempt ID. Rewarded attempt IDs are stored in the smithing progression, so UI rerenders, repeated completion callbacks, and reopening a completed result cannot grant the reward twice. Starting a genuinely new job creates a new attempt and makes it eligible for another reward.
 
 ## Save Compatibility
 

@@ -1,5 +1,10 @@
 import { createDefaultInventoryState } from "../../data/inventoryMockData";
-import { applyBlacksmithTraining, applySmithingClick, startSmithingJob } from "./smithingSystem";
+import {
+  applyBlacksmithTraining,
+  applySmithingClick,
+  BLACKSMITH_MINIGAME_REWARD,
+  startSmithingJob,
+} from "./smithingSystem";
 import type { GameSave } from "../save/saveSystem";
 
 const baseSave: GameSave = {
@@ -17,7 +22,7 @@ const baseSave: GameSave = {
     derivedStats: { health: 10, stamina: 10, armorClass: 10 },
     createdAt: new Date(0).toISOString(),
   },
-  inventory: createDefaultInventoryState(),
+  inventory: { ...createDefaultInventoryState(), gold: 100 },
 };
 
 const trained = applyBlacksmithTraining(baseSave);
@@ -27,8 +32,10 @@ if (!trained.ok || !trained.save.player.smithing?.miniGameUnlocked) {
 }
 
 let workingSave = startSmithingJob(trained.save).save;
+let finalClickSource = workingSave;
 
 for (let index = 0; index < 10; index += 1) {
+  finalClickSource = workingSave;
   workingSave = applySmithingClick(workingSave).save;
 }
 
@@ -38,4 +45,30 @@ if (!workingSave.player.smithing?.completedJobs) {
 
 if (!workingSave.inventory?.items.some((item) => item.origin === "smithing")) {
   throw new Error("Completing smithing should add a reward item.");
+}
+
+if (workingSave.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD) {
+  throw new Error("Completing smithing should add exactly 25 gold.");
+}
+
+const repeatedFinalClick = applySmithingClick(finalClickSource);
+
+if (repeatedFinalClick.save.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD) {
+  throw new Error("Repeating the final callback must not stack the reward.");
+}
+
+const clickWithoutActiveJob = applySmithingClick(workingSave);
+
+if (clickWithoutActiveJob.ok || clickWithoutActiveJob.save.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD) {
+  throw new Error("A completed or closed job must not award gold again.");
+}
+
+workingSave = startSmithingJob(workingSave).save;
+
+for (let index = 0; index < 10; index += 1) {
+  workingSave = applySmithingClick(workingSave).save;
+}
+
+if (workingSave.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD * 2) {
+  throw new Error("A new successful attempt should grant a new reward.");
 }

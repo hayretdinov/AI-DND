@@ -5,7 +5,8 @@ import {
 } from "../components/MagicGuideAccess";
 import { SceneDialoguePanel, type SceneDialogueMessage } from "../components/SceneDialoguePanel";
 import { TopStatusBar, type TopStatusIndicatorData } from "../components/TopStatusHud";
-import { MobileEventLayout, type MobileQuickReply } from "../components/mobile/MobileEventLayout";
+import { MobileEventLayout, type MobileQuickAction, type MobileQuickReply } from "../components/mobile/MobileEventLayout";
+import type { MobileNavigationSection } from "../components/mobile/MobileBottomNavigation";
 import {
   appendDialogueMessages,
   appendAnarielMessage,
@@ -153,6 +154,7 @@ type EventSceneProps = {
   onOpenInventory: (source: InventoryReturnTarget) => void;
   onOpenJournal: () => void;
   onOpenSettings: () => void;
+  onMobileNavigate: (section: MobileNavigationSection) => void;
 };
 
 type CombatLogEntry = {
@@ -168,12 +170,6 @@ type DraggedTradeItem = {
 };
 
 type TradeMode = "buy" | "sell";
-
-const sidebarItems = [
-  { key: "event.ui.sidebarQuest", glyph: "Q" },
-  { key: "event.ui.sidebarBag", glyph: "B" },
-  { key: "event.ui.sidebarMap", glyph: "M" },
-] as const;
 
 const FALLBACK_NPC_IMAGE = "/assets/npcs/road_bandit.png";
 
@@ -828,7 +824,20 @@ function createFallbackCombatant(
 }
 
 function buildCombatThoughtHintContext(save: GameSave | null, npcInstance: NpcInstance | null): CombatHintContext | null {
-  const activeCombat = save?.activeCombat;
+  const activeCombat = npcInstance?.instanceId && save?.activeCombat?.combatants[npcInstance.instanceId]
+    ? save.activeCombat
+    : null;
+  const hasLocalCombatContext = Boolean(
+    activeCombat ||
+    npcInstance?.role === "monster" ||
+    npcInstance?.role === "bandit" ||
+    npcInstance?.status === "dead" ||
+    (npcInstance && isPostCombatNpcStatus(npcInstance.status)),
+  );
+
+  if (!hasLocalCombatContext) {
+    return null;
+  }
   const playerCombatant = save?.player.id
     ? activeCombat?.combatants[save.player.id] ?? createFallbackCombatant(save, npcInstance, "player")
     : createFallbackCombatant(save, npcInstance, "player");
@@ -899,6 +908,16 @@ function isCombatIntent(intent: PlayerIntent) {
 
 function isTextCombatScene(npc: NpcDefinition, npcInstance: NpcInstance | null) {
   return Boolean(npcInstance?.combat || npc.role === "bandit" || npc.role === "monster" || npc.role === "guard");
+}
+
+function getEventScopeKey(save: GameSave | null) {
+  const activeEvent = save?.activeEvent;
+
+  return [
+    activeEvent?.eventId ?? "no-event",
+    activeEvent?.npcInstanceId ?? "no-instance",
+    activeEvent?.npcTemplateId ?? activeEvent?.npcId ?? "no-template",
+  ].join(":");
 }
 
 function hasThrowableEnvironmentObject(event: ReturnType<typeof getDynamicEvent>, objectHint?: PlayerAttackAction["objectHint"]) {
@@ -1029,7 +1048,7 @@ function getTopStatusIndicators(save: GameSave | null, npcState: NpcInstance | n
   ];
 }
 
-export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpenSwampMap, onOpenInventory, onOpenJournal, onOpenSettings }: EventSceneProps) {
+export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpenSwampMap, onOpenInventory, onOpenJournal, onOpenSettings, onMobileNavigate }: EventSceneProps) {
   const loadedSave = loadGame();
   const aiStatus = getAIStatus();
   const aiMockNotice = aiStatus.mode === "backend"
@@ -1060,11 +1079,15 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const [draggedTradeItem, setDraggedTradeItem] = useState<DraggedTradeItem | null>(null);
   const [tradeMode, setTradeMode] = useState<TradeMode>("buy");
   const [openGuideId, setOpenGuideId] = useState<ContextGuideId | null>(null);
+  const [isNpcLootPanelOpen, setIsNpcLootPanelOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
   );
   const hasRequestedInitialIntroGreeting = useRef(false);
-  const currentChatSave = chatSave ?? loadedSave;
+  const loadedEventScopeKey = getEventScopeKey(loadedSave);
+  const activeEventScopeRef = useRef(loadedEventScopeKey);
+  activeEventScopeRef.current = loadedEventScopeKey;
+  const currentChatSave = getEventScopeKey(chatSave) === loadedEventScopeKey ? chatSave ?? loadedSave : loadedSave;
   const showAnarielCompanionPanel = isAnarielActiveCompanion(currentChatSave);
   const activeAnarielState = currentChatSave?.companions?.anariel;
   const isAnarielIntroEvent = currentChatSave?.activeEvent?.eventId === "anariel_intro" && activeAnarielState?.introEventSeen === false;
@@ -1113,6 +1136,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       id: message.id,
       speaker: message.speaker,
       text: message.text,
+      createdAt: message.createdAt,
       speakerName:
         message.speaker === "player"
           ? currentChatSave?.player.name ?? t("traveler")
@@ -1137,20 +1161,24 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     id: message.id,
     speaker: message.speaker === "player" ? "player" : "npc",
     text: message.text,
+    createdAt: message.createdAt,
     speakerName: message.speaker === "player" ? currentChatSave?.player.name ?? t("traveler") : t("companion.anariel.name"),
   }));
   const isNpcDead = npcState?.status === "dead";
   const isNpcDefeatedAlive = Boolean(npcState && isPostCombatNpcStatus(npcState.status));
   const isNpcGone = npcState?.status === "gone" || npcState?.status === "escaped";
   const isPlayerDead = currentChatSave?.player.lifeState === "dead" || (currentChatSave?.player.combat?.currentHealth ?? 1) <= 0;
-  const isPlayerDefeated = !isPlayerDead && (
-    currentChatSave?.player.lifeState === "defeated" ||
-    currentChatSave?.player.lifeState === "robbed" ||
-    currentChatSave?.activeCombat?.postCombatPhase === "playerDefeated"
-  );
   const sceneCombat = currentChatSave?.activeCombat?.combatants[npcState?.instanceId ?? ""]
     ? currentChatSave.activeCombat
     : null;
+  const playerCurrentHealth = currentChatSave?.player.combat?.currentHealth ?? currentChatSave?.player.derivedStats.health ?? 1;
+  const playerMaxHealth = currentChatSave?.player.combat?.maxHealth ?? currentChatSave?.player.derivedStats.health ?? playerCurrentHealth;
+  const isPlayerDefeated = Boolean(
+    !isPlayerDead &&
+      sceneCombat?.postCombatPhase === "playerDefeated" &&
+      currentChatSave?.activeEvent?.npcInstanceId === npcState?.instanceId,
+  );
+  const canLeaveCurrentDefeatEncounter = Boolean(isPlayerDefeated && playerCurrentHealth < playerMaxHealth);
   const combatInputPolicy = getCombatInputPolicy({
     hasCombatScene: Boolean(activeNpc && isTextCombatScene(activeNpc, npcState)),
     canUseNpcDialogue: Boolean(activeNpc?.canUseAiDialogue && !isNpcDead && !isNpcGone),
@@ -1190,8 +1218,26 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   }, [currentChatSave, openGuideId]);
 
   useEffect(() => {
+    setChatSave(loadedSave);
+    setDialogueKey(dynamicEvent?.descriptionKey ?? ANARIEL_INTRO_EVENT.dialogueInitialKey);
+    setIntroStep("initial");
+    setIsNpcChatOpen(false);
+    setIsAnarielChatOpen(false);
+    hasRequestedInitialIntroGreeting.current = false;
     setOpenGuideId(null);
-  }, [currentChatSave?.activeEvent?.eventId, currentChatSave?.activeEvent?.npcInstanceId]);
+    setIsNpcLootPanelOpen(false);
+    setNpcChatInput("");
+    setAnarielChatInput("");
+    setIsNpcThinking(false);
+    setIsAnarielThinking(false);
+    setNpcChatNotice("");
+    setAnarielChatNotice("");
+    setRewardToast("");
+    setCombatLog([]);
+    setEventResultKey("");
+    setDraggedTradeItem(null);
+    setTradeMode("buy");
+  }, [loadedEventScopeKey]);
 
   const handleMarkGuideRead = (guideId: ContextGuideId) => {
     if (!currentChatSave) {
@@ -1325,21 +1371,30 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const renderNpcLootPanel = () => {
     const loot = npcState?.loot;
 
-    if (!loot?.searched || (!loot.items.length && loot.gold <= 0)) {
+    if (!isNpcLootPanelOpen || !loot?.searched) {
       return null;
     }
 
     return (
       <aside className="post-combat-loot-panel" aria-label={t("postCombat.loot.title")}>
         <header>
-          <h2>{t("postCombat.loot.title")}</h2>
-          <button className="merchant-confirm-button" type="button" onClick={handleTakeAllNpcLoot} disabled={loot.items.length === 0}>
-            {t("postCombat.loot.takeAll")}
-          </button>
+          <div>
+            <h2>{t("postCombat.loot.title")}</h2>
+            <span>{activeNpc ? t(activeNpc.nameKey) : t("sceneDialogue.npc")}</span>
+          </div>
+          <div className="post-combat-loot-panel__actions">
+            <button className="merchant-confirm-button" type="button" onClick={handleTakeAllNpcLoot} disabled={loot.items.length === 0}>
+              {t("postCombat.loot.takeAll")}
+            </button>
+            <button className="merchant-refuse-button" type="button" onClick={() => setIsNpcLootPanelOpen(false)}>
+              {t("postCombat.loot.close")}
+            </button>
+          </div>
         </header>
-        <div className="post-combat-loot-grid">
-          {loot.items.map((item) => (
-            <button className="merchant-item-card post-combat-loot-item" type="button" key={item.id} onClick={() => handleTakeNpcLootItem(item.id)}>
+        {loot.items.length > 0 ? (
+          <div className="post-combat-loot-grid">
+            {loot.items.map((item) => (
+            <article className="merchant-item-card post-combat-loot-item" key={item.id}>
               <span className="merchant-item-icon" aria-hidden="true">
                 {item.iconUrl ? (
                   <img
@@ -1354,9 +1409,15 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
               </span>
               <strong>{getItemLabel(item)}</strong>
               <span>{formatTemplate("merchant.ui.itemMetaDetailed", { quantity: item.quantity, value: item.value, weight: item.weight })}</span>
-            </button>
-          ))}
-        </div>
+              <button className="merchant-confirm-button" type="button" onClick={() => handleTakeNpcLootItem(item.id)}>
+                {t("postCombat.loot.take")}
+              </button>
+            </article>
+            ))}
+          </div>
+        ) : (
+          <p className="post-combat-loot-panel__empty">{t("postCombat.loot.empty")}</p>
+        )}
       </aside>
     );
   };
@@ -1420,6 +1481,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   useEffect(() => {
     const sourceSave = currentChatSave;
     const sourceAnariel = sourceSave?.companions?.anariel;
+    const requestEventScopeKey = loadedEventScopeKey;
 
     if (
       !isAnarielIntroEvent ||
@@ -1454,6 +1516,10 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         requestType: "initial_greeting",
       },
     }).then((aiReply) => {
+      if (activeEventScopeRef.current !== requestEventScopeKey) {
+        return;
+      }
+
       const parsedReply = parseAiGameCommands(aiReply.text);
       const cleanReply = parsedReply.cleanText || t("event.anarielIntro.aiInitialFallback1");
       const sanitizedReply = sanitizeAiResponseForWorld({
@@ -1524,14 +1590,26 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         console.info("[TravelEvent] continue", { targetId: pendingTravelTargetId });
       }
 
+      const activeInstanceId = save.activeEvent?.npcInstanceId;
+      const isCurrentDefeatExit = Boolean(
+        activeInstanceId &&
+          save.activeCombat?.combatants[activeInstanceId] &&
+          save.activeCombat.postCombatPhase === "playerDefeated",
+      );
       let nextSave: GameSave = {
         ...save,
         activeEvent: null,
+        activeCombat: isCurrentDefeatExit ? null : save.activeCombat,
         currentLocationId: pendingTravelTargetId ?? save.currentLocationId,
+        player: isCurrentDefeatExit
+          ? {
+              ...save.player,
+              lifeState: "active",
+            }
+          : save.player,
       };
 
       const activeEvent = save.activeEvent;
-      const activeInstanceId = activeEvent?.npcInstanceId;
       const activeInstance = activeInstanceId ? save.npcs?.instances?.[activeInstanceId] : undefined;
       const currentDynamicEvent = getDynamicEvent(save);
 
@@ -1747,11 +1825,12 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
 
     const intent = classifyPostCombatIntent(playerText);
     const playerDead = sourceSave.player.lifeState === "dead" || (sourceSave.player.combat?.currentHealth ?? 1) <= 0;
-    const playerDefeated =
+    const playerDefeated = Boolean(
       !playerDead &&
-      (sourceSave.player.lifeState === "defeated" ||
-        sourceSave.player.lifeState === "robbed" ||
-        sourceSave.activeCombat?.postCombatPhase === "playerDefeated");
+        sourceSave.activeEvent?.npcInstanceId === npcState.instanceId &&
+        sourceSave.activeCombat?.combatants[npcState.instanceId] &&
+        sourceSave.activeCombat.postCombatPhase === "playerDefeated",
+    );
     const postCombatPhase = getPostCombatPhaseForNpc(npcState, playerDefeated || playerDead);
 
     if (postCombatPhase === "none") {
@@ -1783,18 +1862,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     }
 
     if (intent === "searchCorpse") {
-      if (npcState.status !== "dead") {
+      if (npcState.status !== "dead" && !isPostCombatNpcStatus(npcState.status)) {
         appendPostCombatGameMaster(sourceSave, npcState, playerText, "postCombat.searchAlive", {}, postCombatPhase);
         return true;
       }
 
       const searchedNpc = ensureNpcLoot(npcState, true, sourceSave);
       appendPostCombatGameMaster(sourceSave, searchedNpc, playerText, "postCombat.loot.opened", {}, "loot");
+      setIsNpcLootPanelOpen(true);
       return true;
     }
 
     if (intent === "takeAllLoot") {
-      if (npcState.status !== "dead") {
+      if (npcState.status !== "dead" && !isPostCombatNpcStatus(npcState.status)) {
         appendPostCombatGameMaster(sourceSave, npcState, playerText, "postCombat.searchAlive", {}, postCombatPhase);
         return true;
       }
@@ -1807,34 +1887,31 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       );
       const nextSave = saveNpcState(result.save, nextNpcState, "loot");
       saveGame(nextSave);
+      setChatSave(nextSave);
+      setIsNpcLootPanelOpen(true);
       setIsNpcThinking(false);
       return true;
     }
 
     if (intent === "demandItem" && isPostCombatNpcStatus(npcState.status)) {
-      const npcWithLoot = ensureNpcLoot(npcState, false, sourceSave);
-      const offeredItem = npcWithLoot.loot?.items[0];
+      const npcWithLoot = ensureNpcLoot(npcState, true, sourceSave);
 
-      if (!offeredItem) {
+      if (!npcWithLoot.loot?.items.length) {
         appendPostCombatGameMaster(sourceSave, npcWithLoot, playerText, "postCombat.demand.empty", {}, postCombatPhase);
+        setIsNpcLootPanelOpen(true);
         return true;
       }
 
-      const result = takeNpcLootItem(sourceSave, npcWithLoot, offeredItem.id);
       const nextNpcState = appendNpcDialogueMessages(
         {
-          ...result.npcInstance,
+          ...npcWithLoot,
           status: "surrendered" as const,
-          postCombatMemory: {
-            ...(result.npcInstance.postCombatMemory ?? {}),
-            surrenderedItemIds: [...(result.npcInstance.postCombatMemory?.surrenderedItemIds ?? []), offeredItem.templateId],
-            updatedAt: new Date().toISOString(),
-          },
         },
         playerText,
-        formatTemplate("postCombat.demand.given", { item: getItemLabel(offeredItem) }),
+        t("postCombat.demand.opened"),
       );
-      saveNpcState(result.save, nextNpcState, "dialogue");
+      saveNpcState(sourceSave, nextNpcState, "dialogue");
+      setIsNpcLootPanelOpen(true);
       setIsNpcThinking(false);
       return true;
     }
@@ -2311,6 +2388,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const handleSendNpcMessage = async (messageOverride?: string) => {
     const playerText = (messageOverride ?? npcChatInput).trim();
     const sourceSave = currentChatSave;
+    const requestEventScopeKey = loadedEventScopeKey;
 
     if (!playerText || !sourceSave || !activeNpc || !npcState || isNpcThinking) {
       return;
@@ -2849,9 +2927,28 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     }
 
     const tonedNpc = applyNpcToneDelta(npcState, playerText);
-    const socialType = getSocialCheckType(intent);
+    const liveDemandIntent = classifyPostCombatIntent(playerText) === "demandItem";
+    const socialType = getSocialCheckType(intent) ?? (liveDemandIntent ? "intimidation" : null);
     const socialResolution = socialType ? resolveSocialCheck(sourceSave, tonedNpc, socialType, playerText) : null;
     const resolvedNpc = socialResolution?.npc ?? tonedNpc;
+
+    if (liveDemandIntent && socialResolution) {
+      const demandSucceeded = socialResolution.result.outcome === "success" || socialResolution.result.outcome === "criticalSuccess";
+      const demandNpc = demandSucceeded ? ensureNpcLoot(resolvedNpc, true, sourceSave) : resolvedNpc;
+      const nextNpcState = appendNpcDialogueMessages(
+        demandNpc,
+        playerText,
+        t(demandSucceeded ? "postCombat.demand.opened" : socialResolution.result.messageKey),
+      );
+      const nextSave = saveNpcState(sourceSave, nextNpcState, demandSucceeded ? "dialogue" : undefined);
+
+      setIsNpcLootPanelOpen(demandSucceeded);
+      setNpcChatNotice(t(socialResolution.result.messageKey));
+      setNpcChatInput("");
+      setIsNpcThinking(false);
+      setChatSave(nextSave);
+      return;
+    }
     const fallbackReply = t(getNpcFallbackReplyKey(activeNpc, npcState.dialogueHistory.length) as TranslationKey);
     let aiReply: Awaited<ReturnType<typeof requestAIDialogue>>;
 
@@ -2872,8 +2969,14 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       });
     } catch (error) {
       console.error("[NpcChat] failed to get AI reply", error);
-      setNpcChatNotice(t("dialogue.sendError"));
-      setIsNpcThinking(false);
+      if (activeEventScopeRef.current === requestEventScopeKey) {
+        setNpcChatNotice(t("dialogue.sendError"));
+        setIsNpcThinking(false);
+      }
+      return;
+    }
+
+    if (activeEventScopeRef.current !== requestEventScopeKey) {
       return;
     }
 
@@ -3056,23 +3159,15 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     hour: t("mobile.hour"),
     gold: t("mobile.gold"),
     weight: t("mobile.weight"),
-  };
-
-  const openMobileMap = () => {
-    if (currentChatSave?.activeEvent?.returnTo === "cityMap") {
-      onOpenCityMap();
-      return;
-    }
-    if (currentChatSave?.activeEvent?.returnTo === "swampMap") {
-      onOpenSwampMap();
-      return;
-    }
-    onOpenWorldMap();
+    suggestions: t("mobile.suggestions"),
+    events: t("mobile.events"),
+    noEvents: t("mobile.noEvents"),
+    voiceUnavailable: t("mobile.voiceUnavailable"),
   };
 
   const mobileNpcActions = activeNpc ? (
     <>
-      {isPlayerDefeated ? (
+      {canLeaveCurrentDefeatEncounter ? (
         <button
           className="merchant-confirm-button"
           type="button"
@@ -3163,6 +3258,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   if (isMobileViewport && dynamicEvent?.type === "necropolis") {
     return (
       <MobileEventLayout
+        scopeKey={loadedEventScopeKey}
         labels={mobileLabels}
         backgroundUrl={sceneAssetDefinition?.backgroundUrl ?? dynamicEvent.backgroundImage}
         npcName={t(dynamicEvent.titleKey)}
@@ -3181,9 +3277,8 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         gold={playerGold}
         weight={playerWeight.toFixed(1)}
         maxWeight={playerMaxWeight.toFixed(1)}
-        onOpenInventory={() => onOpenInventory("eventScene")}
-        onOpenMap={openMobileMap}
-        onOpenJournal={onOpenJournal}
+        quickActions={[{ id: "leave", label: t("mobile.quickLeaveAction"), icon: "<", onSelect: returnToWorldMap }]}
+        onNavigate={onMobileNavigate}
         onOpenMenu={onOpenSettings}
       />
     );
@@ -3192,7 +3287,15 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   if (isMobileViewport && dynamicEvent && activeNpc) {
     const latestNpcReply = [...npcSceneMessages].reverse().find((message) => message.speaker !== "player")?.text
       ?? (eventResultKey ? t(eventResultKey) : t(activeNpc.greetingKey));
-    const quickReplies: MobileQuickReply[] = combatThoughtHints.length > 0
+    const contextualReplyKeys: TranslationKey[] = activeNpc.role === "merchant"
+      ? ["mobile.quickTrade", "mobile.quickBuy", "mobile.quickSell", "mobile.quickGoods"]
+      : activeNpc.role === "guard"
+        ? ["mobile.quickIntroduce", "mobile.quickLocation", "mobile.quickWork"]
+        : activeNpc.role === "monster"
+          ? ["mobile.quickAttack", "mobile.quickRetreat", "mobile.quickMagic"]
+          : ["mobile.quickIntroduce", "mobile.quickLocation", "mobile.quickWork"];
+    const isLiveMonsterContext = activeNpc.role === "monster" && !isNpcDead && !isNpcDefeatedAlive;
+    const quickReplies: MobileQuickReply[] = combatThoughtHints.length > 0 && !isLiveMonsterContext
       ? combatThoughtHints.slice(0, 4).map((hint) => {
         const label = hint.exampleKey
           ? t(hint.exampleKey as TranslationKey)
@@ -3200,18 +3303,24 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         return {
           id: hint.id,
           label,
-          onSelect: () => handleSendNpcMessage(label),
+          onSelect: () => setNpcChatInput(label),
           disabled: combatInputPolicy.disabled || combatInputPolicy.readOnly || isNpcThinking,
         };
       })
-      : [t("mobile.quickAsk"), t("mobile.quickObserve"), t("mobile.quickHelp")].map((label, index) => ({
-        id: `npc-mobile-reply-${index}`,
-        label,
-        onSelect: () => handleSendNpcMessage(label),
+      : contextualReplyKeys.map((key) => ({
+        id: `npc-mobile-reply-${activeNpc.role}-${key}`,
+        label: t(key),
+        onSelect: () => setNpcChatInput(t(key)),
         disabled: combatInputPolicy.disabled || combatInputPolicy.readOnly || isNpcThinking,
       }));
+    const quickActions: MobileQuickAction[] = [
+      ...(isMerchantScene ? [{ id: "trade" as const, label: t("mobile.quickTradeAction"), icon: "$", onSelect: () => setNpcChatInput(t("mobile.quickTrade")) }] : []),
+      ...(activeNpc.role !== "monster" ? [{ id: "gift" as const, label: t("mobile.quickGiftAction"), icon: "+", onSelect: () => setNpcChatInput(t("mobile.quickGiftPrompt")) }] : []),
+      ...(!isNpcDead && !isNpcDefeatedAlive ? [{ id: "attack" as const, label: t("mobile.quickAttackAction"), icon: "X", onSelect: () => setNpcChatInput(t("mobile.quickAttack")) }] : []),
+      { id: "leave", label: t("mobile.quickLeaveAction"), icon: "<", onSelect: returnToWorldMap },
+    ];
     const mobileLootContent = renderNpcLootPanel();
-    const hasMobileNpcActions = isPlayerDefeated
+    const hasMobileNpcActions = canLeaveCurrentDefeatEncounter
       || isPlayerDead
       || (isMerchantScene && merchantCanConfirmDeal)
       || shouldShowTrainerActions
@@ -3219,6 +3328,8 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
 
     return (
       <MobileEventLayout
+        key={`${currentChatSave?.activeEvent?.eventId ?? "event"}:${npcState?.instanceId ?? "npc"}`}
+        scopeKey={loadedEventScopeKey}
         labels={mobileLabels}
         backgroundUrl={sceneAssetDefinition?.backgroundUrl ?? dynamicEvent.backgroundImage}
         portraitUrl={activeNpc.portraitUrl ?? speakerImage}
@@ -3228,18 +3339,22 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         npcDescription={t(dynamicEvent.descriptionKey)}
         relationshipSummary={npcChatNotice || t(activeNpc.greetingKey)}
         npcStats={npcState ? [
+          { label: t("mobile.relationship"), value: npcState.relationship },
           { label: t("companion.relationship.trust"), value: npcState.trust },
           { label: t("companion.relationship.fear"), value: npcState.fear },
-          { label: t("companion.relationship.respect"), value: npcState.hostility },
+          { label: t("npc.relationship.hostility"), value: npcState.hostility },
+          { label: t("companion.relationship.respect"), value: npcState.relationship },
         ] : []}
         messages={npcSceneMessages}
         latestReply={latestNpcReply}
         quickReplies={quickReplies}
+        quickActions={quickActions}
+        eventEntries={[npcChatNotice, rewardToast].filter((entry): entry is string => Boolean(entry))}
         value={npcChatInput}
         onChange={setNpcChatInput}
         onSend={handleSendNpcMessage}
         isThinking={isNpcThinking}
-        notice={npcChatNotice || rewardToast || aiMockNotice}
+        notice={aiMockNotice}
         disabled={combatInputPolicy.disabled}
         readOnly={combatInputPolicy.readOnly}
         day={currentChatSave?.currentDay ?? 1}
@@ -3250,9 +3365,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         statusContent={npcState?.combat ? <p>{formatHealthStatus(t(activeNpc.nameKey), npcState.combat.currentHealth, npcState.combat.maxHealth)}</p> : null}
         sceneContent={mobileMerchantContent || mobileLootContent ? <>{mobileMerchantContent}{mobileLootContent}</> : null}
         actionContent={hasMobileNpcActions ? mobileNpcActions : null}
-        onOpenInventory={() => onOpenInventory(isMerchantScene ? "merchantScene" : "eventScene")}
-        onOpenMap={openMobileMap}
-        onOpenJournal={onOpenJournal}
+        onNavigate={onMobileNavigate}
         onOpenMenu={onOpenSettings}
       />
     );
@@ -3265,11 +3378,17 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     const quickReplies: MobileQuickReply[] = introChoices.map((choice) => ({
       id: choice.id,
       label: t(choice.labelKey),
-      onSelect: () => chooseAction(choice.action),
+      onSelect: () => setAnarielChatInput(t(choice.labelKey)),
     }));
+    const quickActions: MobileQuickAction[] = [
+      { id: "gift", label: t("mobile.quickGiftAction"), icon: "+", onSelect: () => setAnarielChatInput(t("mobile.quickGiftPrompt")) },
+      { id: "attack", label: t("mobile.quickAttackAction"), icon: "X", onSelect: () => setAnarielChatInput(t("mobile.quickAttack")) },
+      { id: "leave", label: t("mobile.quickLeaveAction"), icon: "<", onSelect: returnToWorldMap },
+    ];
 
     return (
       <MobileEventLayout
+        scopeKey={loadedEventScopeKey}
         labels={mobileLabels}
         backgroundUrl={introEvent.backgroundImage}
         portraitUrl={anarielPortraitImage}
@@ -3279,27 +3398,29 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         npcDescription={t("event.anarielIntro.sceneHint")}
         relationshipSummary={activeAnarielState?.lastDialogueSummary}
         npcStats={activeAnarielState ? [
+          { label: t("mobile.relationship"), value: activeAnarielState.relationship },
           { label: t("companion.relationship.trust"), value: activeAnarielState.trust },
           { label: t("companion.relationship.fear"), value: activeAnarielState.fear },
+          { label: t("npc.relationship.hostility"), value: 0 },
           { label: t("companion.relationship.respect"), value: activeAnarielState.respect },
         ] : []}
         messages={anarielSceneMessages}
         latestReply={latestAnarielReply}
         quickReplies={quickReplies}
+        quickActions={quickActions}
+        eventEntries={[anarielChatNotice, rewardToast].filter((entry): entry is string => Boolean(entry))}
         value={anarielChatInput}
         onChange={setAnarielChatInput}
         onSend={handleSendAnarielMessage}
         isThinking={isAnarielThinking}
-        notice={anarielChatNotice || rewardToast || aiMockNotice}
+        notice={aiMockNotice}
         day={currentChatSave?.currentDay ?? 1}
         hour={currentChatSave?.currentHour ?? 6}
         gold={playerGold}
         weight={playerWeight.toFixed(1)}
         maxWeight={playerMaxWeight.toFixed(1)}
         statusContent={<p>{formatHealthStatus(t("health.player"), currentChatSave?.player.combat?.currentHealth, currentChatSave?.player.combat?.maxHealth)}</p>}
-        onOpenInventory={() => onOpenInventory("eventScene")}
-        onOpenMap={openMobileMap}
-        onOpenJournal={onOpenJournal}
+        onNavigate={onMobileNavigate}
         onOpenMenu={onOpenSettings}
       />
     );
@@ -3382,15 +3503,6 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
           <button className="event-scene-close-button" type="button" onClick={returnToWorldMap} aria-label={t("event.ui.close")}>
             x
           </button>
-        </aside>
-
-        <aside className="event-scene-sidebar" aria-label={t("event.ui.sidebar")}>
-          {sidebarItems.map((item) => (
-            <button className="event-scene-sidebar-button" key={item.key} type="button" disabled>
-              <span>{item.glyph}</span>
-              <small>{t(item.key)}</small>
-            </button>
-          ))}
         </aside>
 
         <div className="event-scene-character event-scene-character--npc event-npc-figure event-npc-figure--large" aria-hidden="true">
@@ -3557,7 +3669,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
             inputPlaceholder={combatInputPolicy.waitingForEnemy ? t("combat.waitForEnemyTurn") : combatInputPolicy.canUseCombatInput ? t("combat.inputPlaceholder") : t("ai.inputPlaceholder")}
             actions={
               <>
-              {isPlayerDefeated ? (
+              {canLeaveCurrentDefeatEncounter ? (
                 <button
                   className="merchant-confirm-button"
                   type="button"
@@ -3685,15 +3797,6 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         <button className="event-scene-close-button" type="button" onClick={onBackToMenu} aria-label={t("event.ui.close")}>
           x
         </button>
-      </aside>
-
-      <aside className="event-scene-sidebar" aria-label={t("event.ui.sidebar")}>
-        {sidebarItems.map((item) => (
-          <button className="event-scene-sidebar-button" key={item.key} type="button" disabled>
-            <span>{item.glyph}</span>
-            <small>{t(item.key)}</small>
-          </button>
-        ))}
       </aside>
 
       <div className="event-scene-character event-npc-figure event-npc-figure--large" aria-hidden="true">

@@ -1178,3 +1178,53 @@ Update date: 2026-07-19
 - Added a client-side safety check for required actor fields and silent dialogue prompts.
 - Backend validation remains unchanged.
 - Local backend fallback remains available for real network failures.
+
+## Mobile Event and Dialogue UI
+
+Update date: 2026-07-19
+
+- Added a dedicated responsive layout for event and NPC dialogue screens at widths up to `768px`.
+- Mobile UI includes a compact HUD, NPC header, latest reply, quick replies, fixed composer, NPC information sheet, and dialogue history sheet.
+- The composer follows `visualViewport` while the on-screen keyboard is open without restarting dialogue or changing game state.
+- Merchant items, deal actions, combat health, post-combat loot, trainer actions, and smithing actions remain connected to existing handlers.
+- Desktop `EventScene` dialogue behavior remains unchanged; the later world-map interaction pass only removes its obsolete disabled `Q / B / M` sidebar. AI request formats, backend logic, save data, and game rules remain unchanged.
+- Added RU/EN labels for the mobile interface.
+- Build passes with `npm.cmd run build` from `client/`.
+- Full architecture and verification notes: `docs/Systems/MOBILE_EVENT_DIALOGUE_UI.md`.
+
+## World Map UI and Interaction Fix
+
+Update date: 2026-07-21
+
+- World map information panels are contextual and can be collapsed, expanded, closed, and restored without changing game state.
+- The selected-location panel opens only after a node tap; mobile panels use a compact bottom-sheet layout.
+- Map drag works over the map image and node layer using Pointer Events and pointer capture.
+- Native image dragging is disabled, click and drag use a `7px` threshold, and camera movement is clamped to the scaled map.
+- Inactive map/settings actions, the disabled desktop event `Q / B / M` sidebar, and the mobile dialogue inventory, map, and journal navigation were removed.
+- Remaining visible controls are connected to existing actions.
+- Full notes: `docs/Systems/WORLD_MAP_UI_INTERACTION.md`.
+
+## Health Recovery and Camp Rest
+
+Update date: 2026-07-21
+
+- Health recovers by `1 HP` per `6` full in-game hours outside combat.
+- Partial time is retained in the existing resource-regeneration save state.
+- Natural and camp recovery are disabled at `0 HP`, during active combat, and while bleeding.
+- Camp rest advances game time by `8` hours and restores `max(3, ceil(maxHealth * 0.30))` HP without exceeding maximum health.
+- Camp hours do not also grant natural healing, preventing double recovery.
+- Recovery persists through the existing save normalization and save/load flow.
+- Full notes: `docs/Systems/HEALTH_RECOVERY_AND_CAMP_REST.md`.
+
+## Regression Fixes: NPC Loot, Travel and Event Exit
+
+Update date: 2026-07-22
+
+- NPC inventory opens after a successful search or demand.
+- Items can be transferred to the player through the existing loot system.
+- Transferred items are removed from the NPC, stack according to the item registry, and persist in the existing save.
+- Consecutive world-map travel starts from the newly reached node.
+- Completed route, segment, event, and travel flags are reset before another route is selected.
+- The defeat `Leave` action is derived from the active encounter and its NPC instead of global player state.
+- Ordinary NPC conversations do not inherit defeat actions from an earlier event.
+- Desktop and mobile event layouts use the same loot and encounter-exit handlers.

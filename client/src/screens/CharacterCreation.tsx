@@ -200,6 +200,54 @@ function getCharacterImage(
   return `/assets/characters/player/${race}/${gender}/${race}-${gender}-${visual}.png`;
 }
 
+type MobileChoiceRowProps<T extends string> = {
+  label: string;
+  options: Array<SelectorOption<T>>;
+  value: T;
+  onChange: (value: T) => void;
+};
+
+function MobileChoiceRow<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: MobileChoiceRowProps<T>) {
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.id === value));
+  const selectedOption = options[selectedIndex] ?? options[0];
+
+  const cycle = (direction: -1 | 1) => {
+    const nextIndex = (selectedIndex + direction + options.length) % options.length;
+    onChange(options[nextIndex].id);
+  };
+
+  return (
+    <div className="creation-mobile-choice-row">
+      <button
+        className="creation-mobile-choice-row__arrow"
+        type="button"
+        onClick={() => cycle(-1)}
+        aria-label={`Предыдущее значение: ${label}`}
+      >
+        <span aria-hidden="true">&#8249;</span>
+      </button>
+      <span className="creation-mobile-choice-row__label" title={label}>{label}</span>
+      <strong className="creation-mobile-choice-row__value" title={selectedOption.label}>{selectedOption.label}</strong>
+      <button
+        className="creation-mobile-choice-row__arrow"
+        type="button"
+        onClick={() => cycle(1)}
+        aria-label={`Следующее значение: ${label}`}
+      >
+        <span aria-hidden="true">&#8250;</span>
+      </button>
+      <span className="creation-mobile-choice-row__art" aria-hidden="true">
+        {selectedOption.icon ? <img src={selectedOption.icon} alt="" /> : selectedOption.symbol}
+      </span>
+    </div>
+  );
+}
+
 export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCreationProps) {
   const [activeStep, setActiveStep] = useState<CreationStep>("race");
   const [pendingStep, setPendingStep] = useState<CreationStep | null>(null);
@@ -211,6 +259,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
   const [previewOutfitStage, setPreviewOutfitStage] =
     useState<PlayerOutfitStage>(STARTING_OUTFIT_STAGE);
   const [allocatedAttributes, setAllocatedAttributes] = useState<AttributeAllocation>(() => createEmptyAttributeAllocation());
+  const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
 
   const selectedRaceDefinition = getRaceDefinition(race);
   const attributes = useMemo(
@@ -392,6 +441,10 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         Назад
       </button>
 
+      <header className="creation-mobile-header">
+        <h1>{t("characterCreationTitle")}</h1>
+      </header>
+
       <aside className="creation-step-nav" aria-label="Этапы создания персонажа" style={ringStyle}>
         <div className="creation-step-ring" aria-hidden="true">
           <img
@@ -439,10 +492,86 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
           alt={`${selectedRace.label}, ${selectedGender.label}`}
         />
         <div className="creation-character-stage__pedestal" aria-hidden="true" />
+        <button
+          className="creation-mobile-stats-toggle"
+          type="button"
+          onClick={() => setMobileStatsOpen((isOpen) => !isOpen)}
+          aria-controls="creation-mobile-stats"
+          aria-expanded={mobileStatsOpen}
+          aria-label="Показать характеристики персонажа"
+        >
+          <img src="/assets/ui/icons/attributes/attribute-strength-icon.png" alt="" />
+        </button>
       </main>
 
-      <aside className="creation-reference-panel" aria-label="Информация о персонаже">
+      <div className="creation-mobile-gender" role="group" aria-label="Пол персонажа">
+        {GENDER_OPTIONS.map((option) => (
+          <button
+            className={`creation-mobile-gender__button ${gender === option.id ? "creation-mobile-gender__button--active" : ""}`}
+            key={option.id}
+            type="button"
+            onClick={() => setGender(option.id)}
+            aria-pressed={gender === option.id}
+          >
+            <img src={option.icon} alt="" />
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <section className="creation-mobile-choices" aria-label="Основные параметры персонажа">
+        <MobileChoiceRow
+          label={STEPS[0].label}
+          options={RACE_OPTIONS}
+          value={race}
+          onChange={setRace}
+        />
+        <MobileChoiceRow
+          label={STEPS[2].label}
+          options={CLASS_OPTIONS}
+          value={characterClass}
+          onChange={setCharacterClass}
+        />
+        <MobileChoiceRow
+          label={STEPS[3].label}
+          options={BACKGROUND_OPTIONS}
+          value={background}
+          onChange={setBackground}
+        />
+        <MobileChoiceRow
+          label="Одежда"
+          options={EQUIPMENT_OPTIONS}
+          value={previewOutfitStage}
+          onChange={setPreviewOutfitStage}
+        />
+      </section>
+
+      <section className="creation-mobile-background-summary" aria-label="Описание предыстории">
+        {selectedBackground.icon ? <img src={selectedBackground.icon} alt="" /> : null}
+        <div>
+          <strong>{selectedBackground.label}</strong>
+          <p>{BACKGROUND_DESCRIPTION[background]}</p>
+        </div>
+      </section>
+
+      <aside
+        className="creation-reference-panel"
+        id="creation-mobile-stats"
+        aria-label="Информация о персонаже"
+        data-mobile-open={mobileStatsOpen}
+      >
         <div className="creation-reference-panel__inner">
+          <div className="creation-mobile-stats-heading">
+            <strong>Характеристики</strong>
+            <button
+              className="creation-mobile-stats-close"
+              type="button"
+              onClick={() => setMobileStatsOpen(false)}
+              aria-label="Закрыть характеристики"
+            >
+              <span aria-hidden="true">&#215;</span>
+            </button>
+          </div>
           <div className="creation-character-title">
             <h1 id="character-creation-title">{trimmedCharacterName || selectedRace.label}</h1>
             <span>Создание персонажа</span>

@@ -249,6 +249,34 @@ function hasButcheringSkill(save?: GameSave) {
 export function classifyPostCombatIntent(text: string): PostCombatIntent {
   const normalized = text.toLowerCase();
 
+  if (/добива|казн|убиваю|перерез/.test(normalized)) {
+    return "execute";
+  }
+
+  if (/заб(рать|ираю).*вс[её]|заб(рать|ираю).*вещ/.test(normalized)) {
+    return "takeAllLoot";
+  }
+
+  if (/обыск|осмотр.*тел|тело|карман/.test(normalized)) {
+    return "searchCorpse";
+  }
+
+  if (/отдай|требую|оружие|снаряжен|кошел|золото|покажи.*что.*у.*теб/.test(normalized)) {
+    return "demandItem";
+  }
+
+  if (/связыва|связать/.test(normalized)) {
+    return "bind";
+  }
+
+  if (/отпуска|пощад/.test(normalized)) {
+    return "release";
+  }
+
+  if (/уйти|ухожу/.test(normalized)) {
+    return "leave";
+  }
+
   if (/добива|казн|убиваю|перерез|finish\s+off|execute|kill\s+him|kill\s+her/.test(normalized)) {
     return "execute";
   }
@@ -358,10 +386,54 @@ function canCarryItem(save: GameSave, item: InventoryItem) {
 
 function addLootToPlayerInventory(save: GameSave, item: InventoryItem): GameSave {
   const inventory = save.inventory ?? createDefaultInventoryState();
+  const template = getItemTemplateById(item.templateId);
+
+  if (template?.stackable) {
+    const maxStack = template.maxStack ?? 99;
+    let remainingQuantity = item.quantity;
+    const items = inventory.items.map((inventoryItem) => {
+      if (
+        inventoryItem.templateId !== item.templateId ||
+        inventoryItem.quantity >= maxStack ||
+        remainingQuantity <= 0
+      ) {
+        return inventoryItem;
+      }
+
+      const addedQuantity = Math.min(maxStack - inventoryItem.quantity, remainingQuantity);
+      remainingQuantity -= addedQuantity;
+      return { ...inventoryItem, quantity: inventoryItem.quantity + addedQuantity };
+    });
+
+    while (remainingQuantity > 0) {
+      const stackQuantity = Math.min(maxStack, remainingQuantity);
+      const instanceId = `${item.templateId}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+      items.push({
+        ...item,
+        id: instanceId,
+        instanceId,
+        quantity: stackQuantity,
+        owner: "player",
+        origin: item.origin ?? "loot",
+        createdAt: nowIso(),
+      });
+      remainingQuantity -= stackQuantity;
+    }
+
+    return {
+      ...save,
+      inventory: {
+        ...inventory,
+        items,
+      },
+    };
+  }
+
+  const instanceId = `${item.templateId}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
   const playerItem: InventoryItem = {
     ...item,
-    id: `${item.templateId}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-    instanceId: `${item.templateId}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    id: instanceId,
+    instanceId,
     owner: "player",
     origin: item.origin ?? "loot",
     createdAt: nowIso(),
