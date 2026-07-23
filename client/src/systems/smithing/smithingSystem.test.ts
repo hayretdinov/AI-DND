@@ -3,6 +3,7 @@ import {
   applyBlacksmithTraining,
   applySmithingClick,
   BLACKSMITH_MINIGAME_REWARD,
+  normalizeSmithingProgression,
   startSmithingJob,
 } from "./smithingSystem";
 import type { GameSave } from "../save/saveSystem";
@@ -57,6 +58,27 @@ if (repeatedFinalClick.save.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD
   throw new Error("Repeating the final callback must not stack the reward.");
 }
 
+const rewardedAttemptIds = workingSave.player.smithing?.rewardedAttemptIds ?? [];
+const rewardedAttemptId = rewardedAttemptIds[rewardedAttemptIds.length - 1];
+const restoredRewardedAttempt = applySmithingClick({
+  ...workingSave,
+  player: {
+    ...workingSave.player,
+    smithing: normalizeSmithingProgression({
+      ...workingSave.player.smithing,
+      currentJob: finalClickSource.player.smithing?.currentJob,
+    }),
+  },
+});
+
+if (
+  !rewardedAttemptId
+  || restoredRewardedAttempt.rewardGranted !== false
+  || restoredRewardedAttempt.save.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD
+) {
+  throw new Error("A rewarded attempt restored from a save must remain claimed.");
+}
+
 const clickWithoutActiveJob = applySmithingClick(workingSave);
 
 if (clickWithoutActiveJob.ok || clickWithoutActiveJob.save.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD) {
@@ -64,6 +86,10 @@ if (clickWithoutActiveJob.ok || clickWithoutActiveJob.save.inventory?.gold !== 1
 }
 
 workingSave = startSmithingJob(workingSave).save;
+
+if (workingSave.inventory?.gold !== 100 + BLACKSMITH_MINIGAME_REWARD) {
+  throw new Error("Starting or leaving an attempt must not grant gold.");
+}
 
 for (let index = 0; index < 10; index += 1) {
   workingSave = applySmithingClick(workingSave).save;
