@@ -8,6 +8,7 @@ import {
 } from "../data/cityMap";
 import { getLocationEventById } from "../data/locationEvents";
 import { getNpcById } from "../data/npcs";
+import { useLocationMapViewport } from "../hooks/useLocationMapViewport";
 import { t, type TranslationKey } from "../i18n/i18n";
 import { loadGame, saveGame } from "../systems/save/saveSystem";
 import type { CityId, CityMapLocation, CityMapNpcPlacement } from "../types/city";
@@ -72,6 +73,12 @@ export function CityMapScene({
   const selectedNpcPlacement = npcPlacements.find((placement) => placement.npcInstanceId === selectedNpcId);
   const selectedNpc = selectedNpcPlacement ? getNpcById(selectedNpcPlacement.npcInstanceId) : null;
   const playerLocation = locations.find((location) => location.id === currentLocationId) ?? currentLocation;
+  const mapViewport = useLocationMapViewport({
+    focusPercent: {
+      x: playerLocation?.xPercent ?? 50,
+      y: playerLocation?.yPercent ?? 50,
+    },
+  });
 
   const openNpc = (placement: CityMapNpcPlacement) => {
     const latestSave = loadGame();
@@ -160,10 +167,97 @@ export function CityMapScene({
 
   return (
     <section className="city-map-scene" aria-label={t("city.cityMap")}>
-      <div className="city-map-background" aria-hidden="true">
-        <img src={cityDefinition.image} alt="" draggable={false} />
+      <div
+        ref={mapViewport.viewportRef}
+        className={[
+          "location-map-viewport",
+          mapViewport.isDragging ? "location-map-viewport--dragging" : "",
+        ].filter(Boolean).join(" ")}
+        onPointerDown={mapViewport.handlePointerDown}
+        onPointerMove={mapViewport.handlePointerMove}
+        onPointerUp={mapViewport.handlePointerEnd}
+        onPointerCancel={mapViewport.handlePointerEnd}
+      >
+        <div className="location-map-world" style={mapViewport.worldStyle}>
+          <div className="city-map-background" aria-hidden="true">
+            <img
+              src={cityDefinition.image}
+              alt=""
+              draggable={false}
+              onLoad={mapViewport.handleImageLoad}
+            />
+          </div>
+          <div className="city-map-vignette" aria-hidden="true" />
+
+          <div
+            className="city-map-player-position"
+            style={{ left: `${playerLocation?.xPercent ?? 50}%`, top: `${playerLocation?.yPercent ?? 50}%` }}
+            aria-label={t("city.currentPosition")}
+          />
+
+          {locations.map((location) => {
+            const status = getLocationStatus(location, discoveredLocationIds);
+            const isSelected = selectedLocationId === location.id;
+
+            return (
+              <button
+                key={location.id}
+                type="button"
+                className={[
+                  "city-map-location-marker",
+                  `city-map-location-marker--${location.markerType}`,
+                  status === "locked" ? "city-map-location-marker--unavailable" : "",
+                  isSelected ? "city-map-location-marker--selected" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ left: `${location.xPercent}%`, top: `${location.yPercent}%` }}
+                onClick={() => {
+                  if (!mapViewport.consumeSuppressedMarkerClick()) {
+                    selectLocation(location);
+                  }
+                }}
+                aria-label={t(location.titleKey)}
+              >
+                <span>{getMarkerGlyph(location.markerType)}</span>
+                <small>{t(location.titleKey)}</small>
+              </button>
+            );
+          })}
+
+          {npcPlacements.map((placement) => {
+            const npc = getNpcById(placement.npcInstanceId);
+
+            if (!npc) {
+              return null;
+            }
+
+            return (
+              <button
+                key={placement.npcInstanceId}
+                type="button"
+                className={[
+                  "city-map-npc-marker",
+                  placement.available ? "" : "city-map-npc-marker--unavailable",
+                  selectedNpcId === placement.npcInstanceId ? "city-map-npc-marker--selected" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ left: `${placement.xPercent}%`, top: `${placement.yPercent}%` }}
+                onClick={() => {
+                  if (!mapViewport.consumeSuppressedMarkerClick()) {
+                    openNpc(placement);
+                  }
+                }}
+                aria-label={t(npc.nameKey)}
+              >
+                {placement.portraitUrl ? <img src={placement.portraitUrl} alt="" draggable={false} /> : null}
+                <span>{t(npc.nameKey).slice(0, 1)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="city-map-vignette" aria-hidden="true" />
 
       <nav className="scene-top-navigation city-map-navigation" aria-label={t("city.navigation")}>
         <button type="button" className="scene-nav-city-map" disabled>
@@ -180,65 +274,11 @@ export function CityMapScene({
         </button>
       </nav>
 
-      <div
-        className="city-map-player-position"
-        style={{ left: `${playerLocation?.xPercent ?? 50}%`, top: `${playerLocation?.yPercent ?? 50}%` }}
-        aria-label={t("city.currentPosition")}
-      />
-
-      {locations.map((location) => {
-        const status = getLocationStatus(location, discoveredLocationIds);
-        const isSelected = selectedLocationId === location.id;
-
-        return (
-          <button
-            key={location.id}
-            type="button"
-            className={[
-              "city-map-location-marker",
-              `city-map-location-marker--${location.markerType}`,
-              status === "locked" ? "city-map-location-marker--unavailable" : "",
-              isSelected ? "city-map-location-marker--selected" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            style={{ left: `${location.xPercent}%`, top: `${location.yPercent}%` }}
-            onClick={() => selectLocation(location)}
-            aria-label={t(location.titleKey)}
-          >
-            <span>{getMarkerGlyph(location.markerType)}</span>
-            <small>{t(location.titleKey)}</small>
-          </button>
-        );
-      })}
-
-      {npcPlacements.map((placement) => {
-        const npc = getNpcById(placement.npcInstanceId);
-
-        if (!npc) {
-          return null;
-        }
-
-        return (
-          <button
-            key={placement.npcInstanceId}
-            type="button"
-            className={[
-              "city-map-npc-marker",
-              placement.available ? "" : "city-map-npc-marker--unavailable",
-              selectedNpcId === placement.npcInstanceId ? "city-map-npc-marker--selected" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            style={{ left: `${placement.xPercent}%`, top: `${placement.yPercent}%` }}
-            onClick={() => openNpc(placement)}
-            aria-label={t(npc.nameKey)}
-          >
-            {placement.portraitUrl ? <img src={placement.portraitUrl} alt="" draggable={false} /> : null}
-            <span>{t(npc.nameKey).slice(0, 1)}</span>
-          </button>
-        );
-      })}
+      <div className="location-map-zoom-controls" aria-label="Map controls">
+        <button type="button" onClick={mapViewport.zoomIn} aria-label="Zoom in">+</button>
+        <button type="button" onClick={mapViewport.zoomOut} aria-label="Zoom out">-</button>
+        <button type="button" onClick={mapViewport.resetView} aria-label="Center map">◎</button>
+      </div>
 
       <aside className="city-map-info-panel">
         <p className="city-map-info-panel__eyebrow">{t(cityDefinition.titleKey)}</p>

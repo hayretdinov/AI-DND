@@ -858,7 +858,14 @@ export function Inventory({
 
         <section className="inventory-center-panel" aria-label={t("inventoryCharacter")}>
           <div className="inventory-character">
-            <div className="inventory-character-stage">
+            <div
+              className={[
+                "inventory-character-stage",
+                showAnariel
+                  ? "inventory-character-stage--with-companion"
+                  : "inventory-character-stage--solo",
+              ].join(" ")}
+            >
               {showAnariel ? (
                 <>
                   {isAnarielImageMissing ? (

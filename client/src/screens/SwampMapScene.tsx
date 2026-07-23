@@ -7,6 +7,7 @@ import {
   type SwampMapLocation,
   type SwampMapMarkerType,
 } from "../data/swampMap";
+import { useLocationMapViewport } from "../hooks/useLocationMapViewport";
 import { t, type TranslationKey } from "../i18n/i18n";
 import { loadGame, saveGame } from "../systems/save/saveSystem";
 
@@ -65,6 +66,12 @@ export function SwampMapScene({
   );
   const selectedEvent = selectedLocation.eventId ? getLocationEventById(selectedLocation.eventId) : null;
   const selectedNpc = selectedEvent?.npcId ? getNpcById(selectedEvent.npcId) : null;
+  const mapViewport = useLocationMapViewport({
+    focusPercent: {
+      x: currentLocation.xPercent,
+      y: currentLocation.yPercent,
+    },
+  });
 
   const openSelectedLocation = () => {
     const latestSave = loadGame();
@@ -140,10 +147,65 @@ export function SwampMapScene({
 
   return (
     <section className="swamp-map-scene" aria-label={t("swamp.mapTitle")}>
-      <div className="swamp-map-background" aria-hidden="true">
-        <img src={SWAMP_MAP_IMAGE} alt="" draggable={false} />
+      <div
+        ref={mapViewport.viewportRef}
+        className={[
+          "location-map-viewport",
+          mapViewport.isDragging ? "location-map-viewport--dragging" : "",
+        ].filter(Boolean).join(" ")}
+        onPointerDown={mapViewport.handlePointerDown}
+        onPointerMove={mapViewport.handlePointerMove}
+        onPointerUp={mapViewport.handlePointerEnd}
+        onPointerCancel={mapViewport.handlePointerEnd}
+      >
+        <div className="location-map-world" style={mapViewport.worldStyle}>
+          <div className="swamp-map-background" aria-hidden="true">
+            <img
+              src={SWAMP_MAP_IMAGE}
+              alt=""
+              draggable={false}
+              onLoad={mapViewport.handleImageLoad}
+            />
+          </div>
+          <div className="swamp-map-fog" aria-hidden="true" />
+
+          <div
+            className="city-map-player-position swamp-map-player-position"
+            style={{ left: `${currentLocation.xPercent}%`, top: `${currentLocation.yPercent}%` }}
+            aria-label={t("city.currentPosition")}
+          />
+
+          {swampMapLocations.map((location) => {
+            const isSelected = selectedLocationId === location.id;
+
+            return (
+              <button
+                key={location.id}
+                type="button"
+                className={[
+                  "city-map-location-marker",
+                  "swamp-map-location-marker",
+                  `swamp-map-location-marker--${location.markerType}`,
+                  location.hidden ? "swamp-map-location-marker--hidden" : "",
+                  isSelected ? "city-map-location-marker--selected" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                style={{ left: `${location.xPercent}%`, top: `${location.yPercent}%` }}
+                onClick={() => {
+                  if (!mapViewport.consumeSuppressedMarkerClick()) {
+                    setSelectedLocationId(location.id);
+                  }
+                }}
+                aria-label={t(location.titleKey)}
+              >
+                <span>{getMarkerGlyph(location.markerType)}</span>
+                <small>{t(location.titleKey)}</small>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="swamp-map-fog" aria-hidden="true" />
 
       <nav className="scene-top-navigation city-map-navigation swamp-map-navigation" aria-label={t("swamp.navigation")}>
         <button type="button" disabled>
@@ -160,37 +222,11 @@ export function SwampMapScene({
         </button>
       </nav>
 
-      <div
-        className="city-map-player-position swamp-map-player-position"
-        style={{ left: `${currentLocation.xPercent}%`, top: `${currentLocation.yPercent}%` }}
-        aria-label={t("city.currentPosition")}
-      />
-
-      {swampMapLocations.map((location) => {
-        const isSelected = selectedLocationId === location.id;
-
-        return (
-          <button
-            key={location.id}
-            type="button"
-            className={[
-              "city-map-location-marker",
-              "swamp-map-location-marker",
-              `swamp-map-location-marker--${location.markerType}`,
-              location.hidden ? "swamp-map-location-marker--hidden" : "",
-              isSelected ? "city-map-location-marker--selected" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            style={{ left: `${location.xPercent}%`, top: `${location.yPercent}%` }}
-            onClick={() => setSelectedLocationId(location.id)}
-            aria-label={t(location.titleKey)}
-          >
-            <span>{getMarkerGlyph(location.markerType)}</span>
-            <small>{t(location.titleKey)}</small>
-          </button>
-        );
-      })}
+      <div className="location-map-zoom-controls" aria-label="Map controls">
+        <button type="button" onClick={mapViewport.zoomIn} aria-label="Zoom in">+</button>
+        <button type="button" onClick={mapViewport.zoomOut} aria-label="Zoom out">-</button>
+        <button type="button" onClick={mapViewport.resetView} aria-label="Center map">◎</button>
+      </div>
 
       <aside className="city-map-info-panel swamp-map-info-panel">
         <p className="city-map-info-panel__eyebrow">{t("swamp.mapTitle")}</p>

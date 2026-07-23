@@ -8278,6 +8278,25 @@ button {
   background: #100c08;
 }
 
+.location-map-viewport,
+.location-map-world {
+  position: absolute;
+  inset: 0;
+}
+
+.location-map-viewport {
+  z-index: 1;
+  overflow: hidden;
+}
+
+.location-map-world {
+  transform-origin: 0 0;
+}
+
+.location-map-zoom-controls {
+  display: none;
+}
+
 .city-map-background,
 .city-map-background img,
 .city-map-vignette {
@@ -9170,17 +9189,50 @@ button {
   }
 
   .inventory-character-figure {
-    left: 46%;
-    bottom: 6px;
-    width: 52%;
-    height: 92%;
+    left: 43%;
+    bottom: 0;
+    width: 72%;
+    height: 96%;
+    z-index: 3;
+    transform: translateX(-50%);
   }
 
   .inventory-character {
     height: 100%;
   }
 
-  .inventory-companion-figure,
+  .inventory-character-stage {
+    overflow: hidden;
+  }
+
+  .inventory-character-stage--solo .inventory-character-figure {
+    left: 50%;
+  }
+
+  .inventory-companion-figure {
+    right: auto;
+    bottom: 2%;
+    left: 58%;
+    display: block;
+    width: 68%;
+    height: 92%;
+    z-index: 2;
+    object-fit: contain;
+    object-position: center bottom;
+    opacity: 0.92;
+    transform: translateX(-50%) scale(0.96);
+    transform-origin: center bottom;
+    filter:
+      brightness(0.8)
+      saturate(0.88)
+      drop-shadow(0 18px 20px rgba(0, 0, 0, 0.82));
+  }
+
+  .inventory-companion-figure--fallback {
+    display: grid;
+    place-items: center;
+  }
+
   .inventory-companion-label,
   .inventory-character-actions {
     display: none;
@@ -9513,6 +9565,139 @@ button {
 
   .inventory-grid {
     grid-auto-rows: 58px;
+  }
+}
+
+/* Local maps share one transformed mobile layer for the image, markers, and player position. */
+@media (max-width: 768px) {
+  html:has(.city-map-scene),
+  body:has(.city-map-scene),
+  html:has(.swamp-map-scene),
+  body:has(.swamp-map-scene) {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .city-map-scene,
+  .swamp-map-scene {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .location-map-viewport {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    overscroll-behavior: contain;
+  }
+
+  .location-map-viewport--dragging {
+    cursor: grabbing;
+  }
+
+  .location-map-world {
+    inset: auto;
+    top: 0;
+    left: 0;
+    transition: transform 90ms ease-out;
+    will-change: transform;
+  }
+
+  .location-map-viewport--dragging .location-map-world {
+    transition: none;
+  }
+
+  .location-map-world .city-map-background img,
+  .location-map-world .swamp-map-background img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    user-select: none;
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+  }
+
+  .location-map-world .city-map-location-marker {
+    width: 44px;
+    height: 44px;
+    grid-template-columns: 1fr;
+    place-items: center;
+    padding: 6px;
+    touch-action: none;
+  }
+
+  .location-map-world .city-map-location-marker span {
+    width: 32px;
+    height: 32px;
+  }
+
+  .location-map-world .city-map-location-marker small {
+    display: none;
+  }
+
+  .location-map-world .city-map-npc-marker {
+    width: 46px;
+    height: 46px;
+    touch-action: none;
+  }
+
+  .location-map-world .city-map-player-position {
+    transform: translate(-50%, -100%);
+  }
+
+  .location-map-zoom-controls {
+    position: absolute;
+    z-index: 22;
+    top: max(94px, calc(env(safe-area-inset-top) + 82px));
+    right: 8px;
+    display: grid;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(190, 145, 73, 0.46);
+    background: rgba(10, 8, 6, 0.82);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.46);
+  }
+
+  .location-map-zoom-controls button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid rgba(211, 168, 94, 0.58);
+    padding: 0;
+    color: #f8e2b4;
+    font: 700 1.05rem/1 Georgia, "Times New Roman", serif;
+    cursor: pointer;
+    background:
+      linear-gradient(rgba(61, 42, 24, 0.9), rgba(19, 15, 12, 0.96)),
+      #1b130e;
+    touch-action: manipulation;
+  }
+
+  .swamp-map-scene .location-map-zoom-controls {
+    border-color: rgba(140, 156, 94, 0.5);
+    background: rgba(8, 15, 10, 0.84);
+  }
+
+  .city-map-info-panel {
+    max-height: min(34dvh, 290px);
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 768px) and (max-height: 620px) {
+  .location-map-zoom-controls {
+    top: 76px;
+    grid-template-columns: repeat(3, 44px);
+  }
+
+  .city-map-info-panel {
+    max-height: 30dvh;
+    padding: 12px;
   }
 }
 
