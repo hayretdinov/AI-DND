@@ -21,6 +21,7 @@ import {
   MELEE_COMBAT_BEGINNER_GUIDE_ITEM_ID,
 } from "../systems/inventory/readableItems";
 import { createDefaultMagicState } from "../systems/magic";
+import { createDefaultPlayerProgression } from "../systems/progression/playerProgressionSystem";
 import { saveGame } from "../systems/save/saveSystem";
 import type {
   Attributes,
@@ -418,6 +419,7 @@ export function CharacterCreation({ onBackToMenu, onStartJourney }: CharacterCre
         attributes,
         derivedStats,
         magic: createDefaultMagicState(characterClass),
+        progression: createDefaultPlayerProgression(),
         createdAt: new Date().toISOString(),
       },
       inventory: createDefaultInventoryState(),

@@ -5,6 +5,14 @@ export type TrainerSpecialization = "meleeTrainer" | "bowTrainer" | "magicTraine
 export type TrainingBranch = "melee" | "archery" | "magic";
 export type TrainerAgreementStatus = "accepted" | "refused";
 
+export type TrainingRequirement = {
+  goldCost: number;
+  skillPointCost: number;
+  requiredPlayerLevel: number;
+  prerequisiteSkillIds?: string[];
+  prerequisiteTier?: TrainingTier;
+};
+
 export type TrainerAgreementState = {
   status: TrainerAgreementStatus;
   requestedAtGameMinute: number;
@@ -14,7 +22,8 @@ export type TrainerAgreementState = {
 };
 
 export type TrainerProgressionState = {
-  skillPoints: number;
+  /** Legacy save field. Current skill points live in player.progression. */
+  skillPoints?: number;
   spentSkillPoints: number;
   learnedTiers: Partial<Record<TrainingBranch, TrainingTier[]>>;
   freeBasicTrainerIds: string[];

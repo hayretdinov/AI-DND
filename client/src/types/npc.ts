@@ -58,6 +58,7 @@ export type NpcDefinition = {
   greetingKey: TranslationKey;
   defaultMood: NpcMood;
   canUseAiDialogue: boolean;
+  experienceReward?: number;
 };
 
 export type NpcRuntimeState = {

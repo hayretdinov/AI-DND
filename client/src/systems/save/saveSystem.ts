@@ -56,6 +56,7 @@ import type {
 } from "../magic/magicTypes";
 import { normalizePlayerProgression } from "../player/playerProgressionSystem";
 import { getPlayerCarryCapacity } from "../player/effectivePlayerStats";
+import { normalizePlayerProgressionState } from "../progression/playerProgressionSystem";
 
 const SAVE_KEY = "ai-dnd-save";
 const DEFAULT_TRAVEL_ENERGY_MAX = 100;
@@ -1487,6 +1488,10 @@ function normalizeSave(data: GameSave, resourceOptions?: ResourceRegenerationOpt
     attributes,
     magic: normalizePlayerMagicState(data.player),
     textCombat: normalizePlayerTextCombatState(data.player),
+    progression: normalizePlayerProgressionState(
+      data.player.progression,
+      data.player.trainerProgression?.skillPoints,
+    ),
     trainerProgression: normalizeTrainerProgression(data.player.trainerProgression),
     smithing: normalizeSmithingProgression(data.player.smithing),
     portraitUrl: getPlayerPortraitUrlForOutfit({
@@ -1553,6 +1558,7 @@ function normalizeSave(data: GameSave, resourceOptions?: ResourceRegenerationOpt
     JSON.stringify(regeneratedSave.player.training) !== JSON.stringify(data.player.training) ||
     JSON.stringify(regeneratedSave.player.magic) !== JSON.stringify(data.player.magic) ||
     JSON.stringify(regeneratedSave.player.textCombat) !== JSON.stringify(data.player.textCombat) ||
+    JSON.stringify(regeneratedSave.player.progression) !== JSON.stringify(data.player.progression) ||
     JSON.stringify(regeneratedSave.player.trainerProgression) !== JSON.stringify(data.player.trainerProgression) ||
     JSON.stringify(regeneratedSave.player.smithing) !== JSON.stringify(data.player.smithing);
 

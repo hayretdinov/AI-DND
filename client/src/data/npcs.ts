@@ -129,6 +129,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.bandit.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 30,
   },
   {
     id: "hooded_bandit_01",
@@ -139,6 +140,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.hoodedBandit.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 35,
   },
   {
     id: "bandit_erik",
@@ -149,6 +151,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.bandit.erik.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 40,
   },
   {
     id: "orc_bandit_milka",
@@ -159,6 +162,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.bandit.milka.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 45,
   },
   {
     id: "orc_bandit_archer",
@@ -169,6 +173,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.bandit.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 40,
   },
   {
     id: "forest_beast_01",
@@ -179,6 +184,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.monster.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 10,
   },
   {
     id: "fire_serpent_01",
@@ -189,6 +195,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.monster.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 20,
   },
   {
     id: "skeleton_warrior_01",
@@ -199,6 +206,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.monster.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 45,
   },
   {
     id: "zombie_01",
@@ -209,6 +217,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.monster.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 35,
   },
   {
     id: "bandit_swordsman_01",
@@ -219,6 +228,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.bandit.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 40,
   },
   {
     id: "swamp_witch_morveyna",
@@ -249,6 +259,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.swampCultCatcher.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 50,
   },
   {
     id: "swamp_cultist_blade",
@@ -261,6 +272,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.swampCultistBlade.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: true,
+    experienceReward: 45,
   },
   {
     id: "swamp_water_horror",
@@ -273,6 +285,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.swampWaterHorror.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 75,
   },
   {
     id: "swamp_giant_toad",
@@ -285,6 +298,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.swampGiantToad.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 25,
   },
   {
     id: "swamp_serpent",
@@ -297,6 +311,7 @@ export const npcDefinitions: NpcDefinition[] = [
     greetingKey: "npc.swampSerpent.greeting",
     defaultMood: "hostile",
     canUseAiDialogue: false,
+    experienceReward: 30,
   },
   ...centralTrainerNpcTemplates,
   ...royalCourtNpcTemplates,

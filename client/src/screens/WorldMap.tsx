@@ -40,6 +40,7 @@ import {
   type WorldMapIconType,
   type WorldMapNodeId,
 } from "../data/worldMap";
+import { grantLocationDiscoveryExperience } from "../systems/progression/progressionRewards";
 import { rollRandomTravelEvent } from "../systems/events/randomTravelEventSystem";
 import { createNpcInstance } from "../systems/npc/npcDialogueSystem";
 import { getPlayerGold, loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
@@ -974,7 +975,7 @@ export function WorldMap({
       lastReachedNodeId = toId;
 
       if (latestSave) {
-        saveGame({
+        const movedSave: GameSave = {
           ...latestSave,
           currentLocationId: toId,
           currentDay: nextTime.day,
@@ -984,7 +985,14 @@ export function WorldMap({
             maxEnergy: latestMaxEnergy,
             lastRestDay: latestSave.travelEnergy?.lastRestDay ?? latestDay,
           },
-        });
+        };
+        const discoveryResult = grantLocationDiscoveryExperience(
+          movedSave,
+          toId,
+          destination.discoveryExperience,
+        );
+
+        saveGame(discoveryResult.save);
       }
 
       setCurrentDay(nextTime.day);

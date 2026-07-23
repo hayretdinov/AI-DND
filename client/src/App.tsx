@@ -29,7 +29,7 @@ import {
   MELEE_COMBAT_BEGINNER_GUIDE_ITEM_ID,
   removeInventoryItemByTemplateId,
 } from "./systems/inventory/readableItems";
-import { normalizeTrainerProgression } from "./systems/trainers/trainerSystem";
+import { grantPlayerSkillPoints } from "./systems/progression/playerProgressionSystem";
 import {
   createDefaultPlayerTextCombatState,
   parseTextCombatAction,
@@ -408,18 +408,7 @@ export default function App() {
           return false;
         }
 
-        const progression = normalizeTrainerProgression(save.player.trainerProgression);
-
-        saveGame({
-          ...save,
-          player: {
-            ...save.player,
-            trainerProgression: {
-              ...progression,
-              skillPoints: progression.skillPoints + Math.max(1, Math.floor(amount)),
-            },
-          },
-        });
+        saveGame(grantPlayerSkillPoints(save, amount, "debug"));
         refreshSaveState();
         return true;
       },

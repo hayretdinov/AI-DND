@@ -1228,3 +1228,19 @@ Update date: 2026-07-22
 - The defeat `Leave` action is derived from the active encounter and its NPC instead of global player state.
 - Ordinary NPC conversations do not inherit defeat actions from an earlier event.
 - Desktop and mobile event layouts use the same loot and encounter-exit handlers.
+
+## Player Experience, Levels and Skill Points
+
+Update date: 2026-07-23
+
+- Added one authoritative progression state at `player.progression`.
+- Level requirements use `100 + (level - 1) * 50`; excess experience and multi-level rewards are supported.
+- Every gained level grants one unspent skill point.
+- Combat, first discovery, structured social checks and the blacksmith mini-game award experience through stable source IDs.
+- A structured quest-completion reward API is ready for the future quest state machine.
+- Combat rewards are configured per hostile NPC and are granted once per `combatId`.
+- Trainer lessons validate level, prerequisite tier, skill points and gold before applying an atomic, deduplicated transaction.
+- Old saves safely receive progression defaults and migrate legacy trainer skill points.
+- Inventory and combat-result interfaces read the same saved progression state on mobile and desktop.
+- Added real Vitest coverage for progression, reward deduplication, training and save migration.
+- Full notes: `docs/Systems/PLAYER_PROGRESSION_SYSTEM.md`.

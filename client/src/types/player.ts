@@ -3,6 +3,7 @@ import type { PlayerMagicState } from "../systems/magic/magicTypes";
 import type { PlayerTextCombatState } from "../systems/combat/text/combatTextTypes";
 import type { TrainerProgressionState } from "../systems/trainers/trainerTypes";
 import type { SmithingProgressionState } from "../systems/smithing/smithingTypes";
+import type { PlayerProgressionState } from "../systems/progression/playerProgressionTypes";
 
 export type PlayerOrigin = "prisoner" | "deserter" | "hunter" | "scholar" | "outcast";
 export type PlayerRace = "human" | "elf" | "dwarf" | "orc";
@@ -49,6 +50,7 @@ export type PlayerCharacter = {
   training?: PlayerTraining;
   magic?: PlayerMagicState;
   textCombat?: PlayerTextCombatState;
+  progression?: PlayerProgressionState;
   trainerProgression?: TrainerProgressionState;
   smithing?: SmithingProgressionState;
   createdAt: string;

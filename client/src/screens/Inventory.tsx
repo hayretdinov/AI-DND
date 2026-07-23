@@ -11,6 +11,7 @@ import { getReadableImageAsset } from "../systems/inventory/readableItems";
 import { loadGame, saveGame, type GameSave } from "../systems/save/saveSystem";
 import { recalculatePlayerDefense } from "../systems/player/playerProgressionSystem";
 import { getPlayerCarryCapacity, resolveEffectivePlayerStats } from "../systems/player/effectivePlayerStats";
+import { getExperienceProgress } from "../systems/progression/playerProgressionSystem";
 import type { WeaponType } from "../types/combat";
 import type { EquipmentSlot, InventoryCategory, InventoryItem, InventoryState } from "../types/inventory";
 import type { PlayerCharacter } from "../types/player";
@@ -363,9 +364,19 @@ export function Inventory({
   const dexterity = attributes?.dexterity ?? 10;
   const strength = attributes?.strength ?? 10;
   const constitution = attributes?.constitution ?? 10;
-  const level = 12;
-  const experienceCurrent = 23460;
-  const experienceMax = 28000;
+  const experienceProgress = currentSave
+    ? getExperienceProgress(currentSave)
+    : {
+        level: player?.progression?.level ?? 1,
+        experience: player?.progression?.experience ?? 0,
+        skillPoints: player?.progression?.skillPoints ?? 0,
+        required: 100,
+        ratio: 0,
+      };
+  const level = experienceProgress.level;
+  const experienceCurrent = experienceProgress.experience;
+  const experienceMax = experienceProgress.required;
+  const skillPoints = experienceProgress.skillPoints;
   const attack = 90 + strength * 5;
   const defense = armorClass * 18 + constitution * 4;
   const criticalChance = Math.max(5, dexterity + 6);
@@ -679,6 +690,7 @@ export function Inventory({
           <div className="inventory-mobile-profile__copy">
             <strong>{player?.name ?? t("traveler")}</strong>
             <span>{t("inventoryLevel")} {level} · {t(getClassKey(player))}</span>
+            <span>{t("inventorySkillPoints")}: {skillPoints}</span>
             <div className="inventory-mobile-resource inventory-mobile-resource--health">
               <i style={{ width: `${healthRatio}%` }} />
               <span>{currentHealth} / {maxHealth}</span>
@@ -723,13 +735,14 @@ export function Inventory({
               <p>
                 {t("inventoryLevel")} {level} • {t(getOriginKey(player))}
               </p>
+              <p>{t("inventorySkillPoints")}: {skillPoints}</p>
             </div>
           </div>
 
           <div className="inventory-resource-bar" aria-label={t("inventoryExperience")}>
             <span>{experienceCurrent.toLocaleString()} / {experienceMax.toLocaleString()}</span>
             <div>
-              <i style={{ width: `${(experienceCurrent / experienceMax) * 100}%` }} />
+              <i style={{ width: `${experienceProgress.ratio * 100}%` }} />
             </div>
           </div>
 

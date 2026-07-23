@@ -1,25 +1,58 @@
 import { trainerDefinitions, getTrainerDefinition } from "../../data/trainerNpcs";
 import { addUniqueInventoryItem } from "../inventory/readableItems";
 import { createDefaultMagicState, learnMagicWord, learnSpellFormula } from "../magic";
-import { spendPlayerGold, type GameSave } from "../save/saveSystem";
+import { getPlayerGold, spendPlayerGold, type GameSave } from "../save/saveSystem";
+import {
+  getPlayerProgression,
+  spendPlayerSkillPoints,
+} from "../progression/playerProgressionSystem";
 import type { PlayerTraining } from "../../types/combat";
 import { createDefaultPlayerTraining } from "../../data/trainingData";
 import type { MagicMasteryLevel } from "../magic/magicTypes";
-import type { TrainerAgreementState, TrainerProgressionState, TrainingBranch, TrainingTier } from "./trainerTypes";
+import type {
+  TrainerAgreementState,
+  TrainerProgressionState,
+  TrainingBranch,
+  TrainingRequirement,
+  TrainingTier,
+} from "./trainerTypes";
 
 const TIER_ORDER: TrainingTier[] = ["basic", "intermediate", "advanced", "expert", "master"];
 
-const TIER_COSTS: Record<TrainingTier, { gold: number; skillPoints: number }> = {
-  basic: { gold: 0, skillPoints: 0 },
-  intermediate: { gold: 25, skillPoints: 1 },
-  advanced: { gold: 60, skillPoints: 2 },
-  expert: { gold: 120, skillPoints: 3 },
-  master: { gold: 250, skillPoints: 5 },
+export const TRAINING_REQUIREMENTS: Record<TrainingTier, TrainingRequirement> = {
+  basic: {
+    goldCost: 0,
+    skillPointCost: 0,
+    requiredPlayerLevel: 1,
+  },
+  intermediate: {
+    goldCost: 25,
+    skillPointCost: 1,
+    requiredPlayerLevel: 3,
+    prerequisiteTier: "basic",
+  },
+  advanced: {
+    goldCost: 60,
+    skillPointCost: 2,
+    requiredPlayerLevel: 5,
+    prerequisiteTier: "intermediate",
+  },
+  expert: {
+    goldCost: 120,
+    skillPointCost: 3,
+    requiredPlayerLevel: 8,
+    prerequisiteTier: "advanced",
+  },
+  master: {
+    goldCost: 250,
+    skillPointCost: 5,
+    requiredPlayerLevel: 12,
+    prerequisiteTier: "expert",
+  },
 };
 
 export function createDefaultTrainerProgression(): TrainerProgressionState {
   return {
-    skillPoints: 0,
     spentSkillPoints: 0,
     learnedTiers: {},
     freeBasicTrainerIds: [],
@@ -36,7 +69,6 @@ export function normalizeTrainerProgression(value?: Partial<TrainerProgressionSt
     : {};
 
   return {
-    skillPoints: Number.isFinite(value?.skillPoints) ? Math.max(0, Math.floor(Number(value?.skillPoints))) : fallback.skillPoints,
     spentSkillPoints: Number.isFinite(value?.spentSkillPoints) ? Math.max(0, Math.floor(Number(value?.spentSkillPoints))) : fallback.spentSkillPoints,
     learnedTiers: {
       melee: normalizeTierList(learnedTiers.melee),
@@ -90,18 +122,10 @@ function normalizeTierList(value: unknown): TrainingTier[] {
     : [];
 }
 
-function getNextTier(branch: TrainingBranch, learnedTiers: TrainingTier[], offeredTiers: TrainingTier[]) {
+function getNextTier(learnedTiers: TrainingTier[], offeredTiers: TrainingTier[]) {
   for (const tier of TIER_ORDER) {
-    if (!offeredTiers.includes(tier) || learnedTiers.includes(tier)) {
-      continue;
-    }
-
-    if (tier === "basic" || learnedTiers.includes(TIER_ORDER[TIER_ORDER.indexOf(tier) - 1])) {
+    if (offeredTiers.includes(tier) && !learnedTiers.includes(tier)) {
       return tier;
-    }
-
-    if (branch !== "magic") {
-      return undefined;
     }
   }
 
@@ -187,18 +211,53 @@ export function getTrainerStatus(save: GameSave | null | undefined, trainerId: s
   const trainer = getTrainerDefinition(trainerId);
 
   if (!save || !trainer) {
-    return { trainer, nextTier: undefined, learnedTiers: [] as TrainingTier[], cost: undefined };
+    return {
+      trainer,
+      nextTier: undefined,
+      learnedTiers: [] as TrainingTier[],
+      cost: undefined,
+      requiredLevel: undefined,
+      canTrain: false,
+      blocker: "unavailable" as const,
+    };
   }
 
-  const progression = normalizeTrainerProgression(save.player.trainerProgression);
-  const learnedTiers = progression.learnedTiers[trainer.branch] ?? [];
-  const nextTier = getNextTier(trainer.branch, learnedTiers, trainer.tiers);
+  const trainerProgression = normalizeTrainerProgression(save.player.trainerProgression);
+  const playerProgression = getPlayerProgression(save);
+  const learnedTiers = trainerProgression.learnedTiers[trainer.branch] ?? [];
+  const nextTier = getNextTier(learnedTiers, trainer.tiers);
+  const requirement = nextTier ? TRAINING_REQUIREMENTS[nextTier] : undefined;
+  const baseCost = requirement
+    ? { gold: requirement.goldCost, skillPoints: requirement.skillPointCost }
+    : undefined;
+  const isFreeBasic = Boolean(
+    nextTier === "basic" &&
+    trainer.freeBasic &&
+    !trainerProgression.freeBasicTrainerIds.includes(trainerId),
+  );
+  const cost = baseCost && isFreeBasic ? { gold: 0, skillPoints: 0 } : baseCost;
+  const requiredLevel = requirement?.requiredPlayerLevel;
+  const blocker =
+    !nextTier || !requirement || !cost || requiredLevel === undefined
+      ? "unavailable"
+      : requirement.prerequisiteTier && !learnedTiers.includes(requirement.prerequisiteTier)
+        ? "prerequisite"
+        : playerProgression.level < requiredLevel
+        ? "level"
+        : playerProgression.skillPoints < cost.skillPoints
+          ? "skillPoints"
+          : getPlayerGold(save) < cost.gold
+            ? "gold"
+            : undefined;
 
   return {
     trainer,
     nextTier,
     learnedTiers,
-    cost: nextTier ? TIER_COSTS[nextTier] : undefined,
+    cost,
+    requiredLevel,
+    canTrain: blocker === undefined,
+    blocker,
   };
 }
 
@@ -213,13 +272,42 @@ export function applyTrainerTraining(save: GameSave, trainerId: string) {
 
   const progression = normalizeTrainerProgression(save.player.trainerProgression);
   const isFreeBasic = tier === "basic" && trainer.freeBasic && !progression.freeBasicTrainerIds.includes(trainerId);
-  const cost = isFreeBasic ? { gold: 0, skillPoints: 0 } : status.cost;
+  const cost = status.cost;
 
-  if (progression.skillPoints < cost.skillPoints) {
+  if (status.blocker === "level") {
+    return {
+      ok: false as const,
+      save,
+      messageKey: "trainer.message.levelTooLow",
+      tier,
+      requiredLevel: status.requiredLevel,
+    };
+  }
+
+  if (status.blocker === "prerequisite") {
+    return { ok: false as const, save, messageKey: "trainer.message.prerequisiteMissing", tier };
+  }
+
+  if (status.blocker === "skillPoints") {
     return { ok: false as const, save, messageKey: "trainer.message.notEnoughSkillPoints", tier };
   }
 
-  const goldResult = cost.gold > 0 ? spendPlayerGold(save, cost.gold, `trainer_${trainerId}_${tier}`) : { save, success: true };
+  if (status.blocker === "gold") {
+    return { ok: false as const, save, messageKey: "trainer.message.notEnoughGold", tier };
+  }
+
+  const transactionId = `trainer_${trainerId}_${trainer.branch}_${tier}`;
+  const skillPointResult = cost.skillPoints > 0
+    ? spendPlayerSkillPoints(save, cost.skillPoints, "trainer_training", transactionId)
+    : { save, success: true, duplicate: false };
+
+  if (!skillPointResult.success) {
+    return { ok: false as const, save, messageKey: "trainer.message.notEnoughSkillPoints", tier };
+  }
+
+  const goldResult = cost.gold > 0
+    ? spendPlayerGold(skillPointResult.save, cost.gold, transactionId)
+    : { save: skillPointResult.save, success: true };
 
   if (!goldResult.success) {
     return { ok: false as const, save, messageKey: "trainer.message.notEnoughGold", tier };
@@ -239,7 +327,6 @@ export function applyTrainerTraining(save: GameSave, trainerId: string) {
   const learnedForBranch = progression.learnedTiers[trainer.branch] ?? [];
   const nextProgression: TrainerProgressionState = {
     ...progression,
-    skillPoints: Math.max(0, progression.skillPoints - cost.skillPoints),
     spentSkillPoints: progression.spentSkillPoints + cost.skillPoints,
     learnedTiers: {
       ...progression.learnedTiers,
@@ -263,6 +350,7 @@ export function applyTrainerTraining(save: GameSave, trainerId: string) {
     messageKey: isFreeBasic ? "trainer.message.basicCompletedFree" : "trainer.message.trainingCompleted",
     tier,
     cost,
+    requiredLevel: status.requiredLevel,
   };
 }
 

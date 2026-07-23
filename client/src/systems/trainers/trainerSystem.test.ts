@@ -26,6 +26,14 @@ const mockSave = {
       stamina: 10,
       armorClass: 10,
     },
+    progression: {
+      level: 3,
+      experience: 0,
+      skillPoints: 0,
+      processedRewardIds: [],
+      processedTransactionIds: [],
+      journal: [],
+    },
     training: createDefaultPlayerTraining(),
     createdAt: "2026-07-15T00:00:00.000Z",
   },
@@ -79,8 +87,8 @@ const saveWithSkillPoints = {
   ...edgarBasic.save,
   player: {
     ...edgarBasic.save.player,
-    trainerProgression: {
-      ...edgarBasic.save.player.trainerProgression!,
+    progression: {
+      ...edgarBasic.save.player.progression!,
       skillPoints: 3,
     },
   },

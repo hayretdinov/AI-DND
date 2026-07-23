@@ -2,10 +2,15 @@ import { createDefaultInventoryState } from "../../data/inventoryMockData";
 import { getItemTemplateById, type ItemId } from "../../data/itemRegistry";
 import type { InventoryItem } from "../../types/inventory";
 import { addPlayerGold, type GameSave } from "../save/saveSystem";
+import {
+  BLACKSMITH_MINIGAME_EXPERIENCE,
+} from "../progression/progressionRewards";
+import { addPlayerExperience } from "../progression/playerProgressionSystem";
 import type { SmithingJobState, SmithingProgressionState, SmithingStage } from "./smithingTypes";
 
 export const BLACKSMITH_DULTRAN_ID = "central_blacksmith_dultran";
 export const BLACKSMITH_MINIGAME_REWARD = 25;
+export { BLACKSMITH_MINIGAME_EXPERIENCE };
 
 export const smithingStageGoals: Record<SmithingStage, number> = {
   heat: 3,
@@ -267,11 +272,19 @@ export function applySmithingClick(save: GameSave) {
   }
 
   const rewardItemId = smithingRewardCycle[smithing.completedJobs % smithingRewardCycle.length];
-  const rewardedSave = addPlayerGold(
+  const rewardedWithGold = addPlayerGold(
     addSmithingReward(save, rewardItemId),
     BLACKSMITH_MINIGAME_REWARD,
     `smithing_minigame_${job.attemptId}`,
   );
+  const experienceResult = addPlayerExperience(
+    rewardedWithGold,
+    BLACKSMITH_MINIGAME_EXPERIENCE,
+    "smithing_minigame_completed",
+    `smithing:${job.attemptId}`,
+    "smithing",
+  );
+  const rewardedSave = experienceResult.save;
 
   return {
     ok: true,
@@ -280,6 +293,7 @@ export function applySmithingClick(save: GameSave) {
     attemptId: job.attemptId,
     rewardItemId,
     rewardGold: BLACKSMITH_MINIGAME_REWARD,
+    rewardExperience: experienceResult.amount,
     save: {
       ...rewardedSave,
       player: {

@@ -112,6 +112,14 @@ import { createGameMasterNarration } from "../systems/gameMaster/gameMasterSyste
 import { classifyChatMessage } from "../systems/intent/chatIntentRouter";
 import { parsePlayerIntent, type PlayerIntent } from "../systems/intent/playerIntentSystem";
 import { getSocialCheckType, resolveSocialCheck } from "../systems/npc/socialCheckSystem";
+import {
+  grantCombatVictoryExperience,
+  grantSocialCheckExperience,
+} from "../systems/progression/progressionRewards";
+import {
+  getExperienceProgress,
+  type ExperienceGrantResult,
+} from "../systems/progression/playerProgressionSystem";
 import { getCombatInputPolicy } from "../systems/combat/combatInputPolicy";
 import { canEnterGrantedGate } from "../systems/navigation/gateAccessSystem";
 import {
@@ -426,6 +434,26 @@ function formatTemplate(key: TranslationKey, values: Record<string, string | num
     (text, [token, value]) => text.replace(`{${token}}`, String(value)),
     t(key),
   );
+}
+
+function formatExperienceReward(result: ExperienceGrantResult) {
+  if (!result.granted) {
+    return "";
+  }
+
+  const parts = [formatTemplate("progression.experienceReceived", { amount: result.amount })];
+
+  if (result.levelsGained === 1) {
+    parts.push(formatTemplate("progression.newLevel", { level: result.levelAfter }));
+  } else if (result.levelsGained > 1) {
+    parts.push(formatTemplate("progression.levelsReceived", { count: result.levelsGained }));
+  }
+
+  if (result.skillPointsGained > 0) {
+    parts.push(formatTemplate("progression.skillPointsReceived", { count: result.skillPointsGained }));
+  }
+
+  return parts.join(" · ");
 }
 
 function getCombatLog(result: PlayerAttackResult, enemyName: string): CombatLogEntry[] {
@@ -1128,7 +1156,17 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     : undefined;
   const canEnterCity = canEnterGrantedGate(currentChatSave, activeNpc?.role, dynamicEvent?.type, dynamicCityId);
   const merchantState = isMerchantScene && activeNpc ? getMerchantState(currentChatSave, activeNpc.id) : null;
-  const trainerStatus = activeNpc ? getTrainerStatus(currentChatSave, activeNpc.id) : { trainer: undefined, nextTier: undefined, learnedTiers: [], cost: undefined };
+  const trainerStatus = activeNpc
+    ? getTrainerStatus(currentChatSave, activeNpc.id)
+    : {
+        trainer: undefined,
+        nextTier: undefined,
+        learnedTiers: [],
+        cost: undefined,
+        requiredLevel: undefined,
+        canTrain: false,
+        blocker: "unavailable" as const,
+      };
   const isBlacksmithScene = dynamicEvent?.type === "npc" && activeNpc?.role === "blacksmith";
   const trainingActionsUnlocked = Boolean(activeNpc && hasAcceptedTrainerAgreement(currentChatSave, activeNpc.id));
   const smithingStatus = getSmithingProgression(currentChatSave);
@@ -1179,6 +1217,13 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const sceneCombat = currentChatSave?.activeCombat?.combatants[npcState?.instanceId ?? ""]
     ? currentChatSave.activeCombat
     : null;
+  const combatRewardEntry = sceneCombat
+    ? currentChatSave?.player.progression?.journal
+        .slice()
+        .reverse()
+        .find((entry) => entry.sourceId === `combat:${sceneCombat.combatId}`)
+    : undefined;
+  const combatExperienceProgress = currentChatSave ? getExperienceProgress(currentChatSave) : undefined;
   const playerCurrentHealth = currentChatSave?.player.combat?.currentHealth ?? currentChatSave?.player.derivedStats.health ?? 1;
   const playerMaxHealth = currentChatSave?.player.combat?.maxHealth ?? currentChatSave?.player.derivedStats.health ?? playerCurrentHealth;
   const isPlayerDefeated = Boolean(
@@ -1435,8 +1480,30 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     );
   };
   const merchantCanConfirmDeal = activeMerchantDeal?.dealState === "accepted";
-  const trainerCanTrain = Boolean(trainingActionsUnlocked && trainerStatus.trainer && trainerStatus.nextTier && !isNpcDead && !isNpcGone);
+  const trainerCanTrain = Boolean(
+    trainingActionsUnlocked &&
+    trainerStatus.trainer &&
+    trainerStatus.nextTier &&
+    trainerStatus.canTrain &&
+    !isNpcDead &&
+    !isNpcGone,
+  );
   const shouldShowTrainerActions = Boolean(trainingActionsUnlocked && trainerStatus.trainer);
+  const trainerBlockerText = trainerStatus.blocker === "prerequisite"
+    ? t("trainer.message.prerequisiteMissing")
+    : trainerStatus.blocker === "level"
+      ? formatTemplate("trainer.status.requiredLevel", { level: trainerStatus.requiredLevel ?? 1 })
+      : trainerStatus.blocker === "skillPoints"
+        ? t("trainer.message.notEnoughSkillPoints")
+        : trainerStatus.blocker === "gold"
+          ? t("trainer.message.notEnoughGold")
+          : "";
+  const trainerRequirementText = trainerStatus.nextTier && trainerStatus.cost && trainerStatus.requiredLevel
+    ? `${formatTemplate("trainer.status.cost", {
+        gold: trainerStatus.cost.gold,
+        skillPoints: trainerStatus.cost.skillPoints,
+      })} ${formatTemplate("trainer.status.requiredLevel", { level: trainerStatus.requiredLevel })}${trainerBlockerText ? ` ${trainerBlockerText}` : ""}`
+    : "";
   const shouldShowBlacksmithActions = Boolean(trainingActionsUnlocked && isBlacksmithScene);
   const smithingJob = smithingStatus.currentJob;
   const smithingStageGoal = smithingJob ? smithingStageGoals[smithingJob.stage] : 0;
@@ -2297,13 +2364,22 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     const goldText = result.rewardGold
       ? `\n${formatTemplate("smithing.result.gold", { amount: result.rewardGold })}`
       : "";
+    const experienceAmount = "rewardExperience" in result ? result.rewardExperience : 0;
+    const experienceText = experienceAmount
+      ? `\n${formatTemplate("progression.experienceReceived", { amount: experienceAmount })}`
+      : "";
     const completionText = result.completed && result.rewardGranted
-      ? `\n${t("smithing.result.satisfied")}${goldText}`
+      ? `\n${t("smithing.result.satisfied")}${goldText}${experienceText}`
       : "";
     const message = `${t(result.messageKey as TranslationKey)}${completionText}${rewardText}`;
 
     if (result.rewardGranted && result.rewardGold) {
-      setRewardToast(formatTemplate("smithing.notification.gold", { amount: result.rewardGold }));
+      setRewardToast([
+        formatTemplate("smithing.notification.gold", { amount: result.rewardGold }),
+        experienceAmount
+          ? formatTemplate("progression.experienceReceived", { amount: experienceAmount })
+          : "",
+      ].filter(Boolean).join(" · "));
     }
 
     applyBlacksmithResult(sourceSave, t("smithing.action.work"), result.save, message);
@@ -2604,13 +2680,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         shouldRunEnemyTurn: validation.ok && isTextCombatScene(activeNpc, resolvedNpcState) && resolvedNpcState.status === "alive" && !resolvedNpcState.combat?.isDefeated,
       });
       const nextNpcState = turnResolution.npcState;
+      const progressionResult = grantCombatVictoryExperience(
+        turnResolution.save,
+        combatAfterPlayer?.combatId,
+        activeNpc,
+        combatAfterPlayer?.phase === "victory",
+      );
       const nextSave: GameSave = {
-        ...turnResolution.save,
+        ...progressionResult.save,
         npcs: {
-          ...(turnResolution.save.npcs ?? { instances: {} }),
+          ...(progressionResult.save.npcs ?? { instances: {} }),
           templatesKnown: Array.from(new Set([...(sourceSave.npcs?.templatesKnown ?? []), activeNpc.id])),
           instances: {
-            ...(turnResolution.save.npcs?.instances ?? {}),
+            ...(progressionResult.save.npcs?.instances ?? {}),
             [nextNpcState.instanceId]: nextNpcState,
           },
         },
@@ -2629,7 +2711,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       saveGame(nextSave, { mode: "combat" });
       setChatSave(nextSave);
       setEventResultKey("");
-      setRewardToast("");
+      setRewardToast(formatExperienceReward(progressionResult));
       setNpcChatNotice("");
       setCombatLog([]);
       setNpcChatInput("");
@@ -2689,13 +2771,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         shouldRunEnemyTurn: shouldSpendCombatTurn(result, actionType) && nextNpcState.status === "alive" && !result.enemyDefeated,
       });
       const nextNpcDialogueState = turnResolution.npcState;
+      const progressionResult = grantCombatVictoryExperience(
+        turnResolution.save,
+        combatAfterPlayer?.combatId,
+        activeNpc,
+        combatAfterPlayer?.phase === "victory",
+      );
       const nextSave: GameSave = {
-        ...turnResolution.save,
+        ...progressionResult.save,
         npcs: {
-          ...(turnResolution.save.npcs ?? { instances: {} }),
+          ...(progressionResult.save.npcs ?? { instances: {} }),
           templatesKnown: Array.from(new Set([...(sourceSave.npcs?.templatesKnown ?? []), activeNpc.id])),
           instances: {
-            ...(turnResolution.save.npcs?.instances ?? {}),
+            ...(progressionResult.save.npcs?.instances ?? {}),
             [nextNpcDialogueState.instanceId]: nextNpcDialogueState,
           },
         },
@@ -2720,7 +2808,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       saveGame(nextSave, { mode: "combat" });
       setChatSave(nextSave);
       setEventResultKey("");
-      setRewardToast("");
+      setRewardToast(formatExperienceReward(progressionResult));
       setNpcChatNotice("");
       setCombatLog(getRangedCombatLog(result));
       setNpcChatInput("");
@@ -2782,13 +2870,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         shouldRunEnemyTurn: shouldSpendCombatTurn(result, actionType) && nextNpcState.status === "alive" && !result.enemyDefeated,
       });
       const nextNpcDialogueState = turnResolution.npcState;
+      const progressionResult = grantCombatVictoryExperience(
+        turnResolution.save,
+        combatAfterPlayer?.combatId,
+        activeNpc,
+        combatAfterPlayer?.phase === "victory",
+      );
       const nextSave: GameSave = {
-        ...turnResolution.save,
+        ...progressionResult.save,
         npcs: {
-          ...(turnResolution.save.npcs ?? { instances: {} }),
+          ...(progressionResult.save.npcs ?? { instances: {} }),
           templatesKnown: Array.from(new Set([...(sourceSave.npcs?.templatesKnown ?? []), activeNpc.id])),
           instances: {
-            ...(turnResolution.save.npcs?.instances ?? {}),
+            ...(progressionResult.save.npcs?.instances ?? {}),
             [nextNpcDialogueState.instanceId]: nextNpcDialogueState,
           },
         },
@@ -2811,7 +2905,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       saveGame(nextSave, { mode: "combat" });
       setChatSave(nextSave);
       setEventResultKey("");
-      setRewardToast("");
+      setRewardToast(formatExperienceReward(progressionResult));
       setNpcChatNotice("");
       setCombatLog(getTextCombatLog(result));
       setNpcChatInput("");
@@ -2920,10 +3014,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
           },
         },
       };
+      const socialExperienceResult = socialResolution && socialType
+        ? grantSocialCheckExperience(
+            nextSave,
+            `${sourceSave.activeEvent?.eventId ?? "gate"}:${activeNpc.id}:${socialType}`,
+            socialResolution.result.outcome,
+          )
+        : null;
+      const rewardedSave = socialExperienceResult?.save ?? nextSave;
 
-      saveGame(nextSave);
-      setChatSave(nextSave);
+      saveGame(rewardedSave);
+      setChatSave(rewardedSave);
       setEventResultKey(gateResultKey);
+      setRewardToast(socialExperienceResult ? formatExperienceReward(socialExperienceResult) : "");
       setNpcChatNotice("");
       setNpcChatInput("");
       setIsNpcThinking(false);
@@ -3090,10 +3193,20 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       source: "npc_ai",
       authorizedTransfers: [],
     });
+    const socialExperienceResult = socialResolution && socialType
+      ? grantSocialCheckExperience(
+          rewardResult.save,
+          `${sourceSave.activeEvent?.eventId ?? "dialogue"}:${activeNpc.id}:${socialType}`,
+          socialResolution.result.outcome,
+        )
+      : null;
+    const rewardedSave = socialExperienceResult?.save ?? rewardResult.save;
+    const itemAndGoldToast = getRewardToast(rewardResult.itemRewards, rewardResult.goldRewards);
+    const experienceToast = socialExperienceResult ? formatExperienceReward(socialExperienceResult) : "";
 
-    saveGame(rewardResult.save);
-    setChatSave(rewardResult.save);
-    setRewardToast(getRewardToast(rewardResult.itemRewards, rewardResult.goldRewards));
+    saveGame(rewardedSave);
+    setChatSave(rewardedSave);
+    setRewardToast([itemAndGoldToast, experienceToast].filter(Boolean).join(" · "));
     setNpcChatNotice(socialResolution ? t(socialResolution.result.messageKey) : "");
     setNpcChatInput("");
     setIsNpcThinking(false);
@@ -3180,13 +3293,19 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
       shouldRunEnemyTurn: result.ok && nextNpcState.status === "alive" && !result.enemyDefeated,
     });
     const nextNpcDialogueState = turnResolution.npcState;
+    const progressionResult = grantCombatVictoryExperience(
+      turnResolution.save,
+      combatAfterPlayer?.combatId,
+      activeNpc,
+      combatAfterPlayer?.phase === "victory",
+    );
     const nextSave: GameSave = {
-      ...turnResolution.save,
+      ...progressionResult.save,
       npcs: {
-        ...(turnResolution.save.npcs ?? { instances: {} }),
+        ...(progressionResult.save.npcs ?? { instances: {} }),
         templatesKnown: Array.from(new Set([...(sourceSave.npcs?.templatesKnown ?? []), activeNpc.id])),
         instances: {
-          ...(turnResolution.save.npcs?.instances ?? {}),
+          ...(progressionResult.save.npcs?.instances ?? {}),
           [nextNpcDialogueState.instanceId]: nextNpcDialogueState,
         },
       },
@@ -3205,6 +3324,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     saveGame(nextSave);
     setChatSave(nextSave);
     setEventResultKey("");
+    setRewardToast(formatExperienceReward(progressionResult));
     setCombatLog(getCombatLog({ ...result, enemyAttack: turnResolution.enemyAttack }, t(activeNpc.nameKey)));
 
     if (result.enemyDefeated) {
@@ -3288,11 +3408,14 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         </>
       ) : null}
       {shouldShowTrainerActions ? (
-        <button className="merchant-confirm-button" type="button" onClick={handleTrainerTraining} disabled={!trainerCanTrain}>
-          {trainerStatus.nextTier
-            ? `${t("trainer.action.train")} - ${t(`trainer.tier.${trainerStatus.nextTier}` as TranslationKey)}`
-            : t("trainer.action.noTraining")}
-        </button>
+        <>
+          <button className="merchant-confirm-button" type="button" onClick={handleTrainerTraining} disabled={!trainerCanTrain} title={trainerRequirementText}>
+            {trainerStatus.nextTier
+              ? `${t("trainer.action.train")} - ${t(`trainer.tier.${trainerStatus.nextTier}` as TranslationKey)}`
+              : t("trainer.action.noTraining")}
+          </button>
+          {trainerRequirementText ? <small className="trainer-requirements">{trainerRequirementText}</small> : null}
+        </>
       ) : null}
       {shouldShowBlacksmithActions ? (
         <div className="smithing-mini-game" aria-label={t("smithing.ui.title")}>
@@ -3366,6 +3489,20 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
           <strong>{t("mobile.postCombat.victory")}</strong>
           <span>{formatTemplate("mobile.postCombat.defeated", { name: t(activeNpc.nameKey) })}</span>
         </header>
+        {combatRewardEntry && combatExperienceProgress ? (
+          <div className="mobile-post-combat-result__experience">
+            <strong>{formatTemplate("progression.experienceReceived", { amount: combatRewardEntry.experienceGained })}</strong>
+            <span>
+              {t("inventoryExperience")}: {combatExperienceProgress.experience} / {combatExperienceProgress.required}
+            </span>
+            {combatRewardEntry.levelAfter > combatRewardEntry.levelBefore ? (
+              <span>{formatTemplate("progression.newLevel", { level: combatRewardEntry.levelAfter })}</span>
+            ) : null}
+            {combatRewardEntry.skillPointsGained > 0 ? (
+              <span>{formatTemplate("progression.skillPointsReceived", { count: combatRewardEntry.skillPointsGained })}</span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="mobile-post-combat-result__actions">
           {getPostCombatActions(npcState, currentChatSave ?? undefined).map((action) => (
             <button
@@ -3843,11 +3980,14 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
                 </>
               ) : null}
               {shouldShowTrainerActions ? (
-                <button className="merchant-confirm-button" type="button" onClick={handleTrainerTraining} disabled={!trainerCanTrain}>
-                  {trainerStatus.nextTier
-                    ? `${t("trainer.action.train")} - ${t(`trainer.tier.${trainerStatus.nextTier}` as TranslationKey)}`
-                    : t("trainer.action.noTraining")}
-                </button>
+                <>
+                  <button className="merchant-confirm-button" type="button" onClick={handleTrainerTraining} disabled={!trainerCanTrain} title={trainerRequirementText}>
+                    {trainerStatus.nextTier
+                      ? `${t("trainer.action.train")} - ${t(`trainer.tier.${trainerStatus.nextTier}` as TranslationKey)}`
+                      : t("trainer.action.noTraining")}
+                  </button>
+                  {trainerRequirementText ? <small className="trainer-requirements">{trainerRequirementText}</small> : null}
+                </>
               ) : null}
               {shouldShowBlacksmithActions ? (
                 <div className="smithing-mini-game" aria-label={t("smithing.ui.title")}>

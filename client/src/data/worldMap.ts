@@ -39,6 +39,7 @@ export type MapNode = {
   type: WorldMapNodeType;
   unlocked: boolean;
   enterEventId?: string;
+  discoveryExperience?: number;
 };
 
 export type MapRoute = {
@@ -64,6 +65,7 @@ export const worldMapNodes: MapNode[] = [
     type: "location",
     unlocked: true,
     enterEventId: "gate_winter_city",
+    discoveryExperience: 20,
   },
   {
     id: "western_great_city",
@@ -76,6 +78,7 @@ export const worldMapNodes: MapNode[] = [
     type: "location",
     unlocked: true,
     enterEventId: "gate_western_great_city",
+    discoveryExperience: 15,
   },
   {
     id: "camp_location",
@@ -87,6 +90,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "camp",
     type: "camp_point",
     unlocked: true,
+    discoveryExperience: 10,
   },
   {
     id: "central_settlement",
@@ -99,6 +103,7 @@ export const worldMapNodes: MapNode[] = [
     type: "location",
     unlocked: true,
     enterEventId: "gate_central_settlement",
+    discoveryExperience: 15,
   },
   {
     id: "northern_castle",
@@ -111,6 +116,7 @@ export const worldMapNodes: MapNode[] = [
     type: "location",
     unlocked: true,
     enterEventId: "gate_northern_castle",
+    discoveryExperience: 20,
   },
   {
     id: "southern_castle",
@@ -123,6 +129,7 @@ export const worldMapNodes: MapNode[] = [
     type: "location",
     unlocked: true,
     enterEventId: "gate_southern_castle",
+    discoveryExperience: 20,
   },
   {
     id: "cave_location",
@@ -134,6 +141,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "cave",
     type: "danger_point",
     unlocked: true,
+    discoveryExperience: 25,
   },
   {
     id: "portal_location",
@@ -145,6 +153,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "portal",
     type: "danger_point",
     unlocked: true,
+    discoveryExperience: 30,
   },
   {
     id: "necropolis_skull_castle",
@@ -157,6 +166,7 @@ export const worldMapNodes: MapNode[] = [
     type: "danger_point",
     unlocked: true,
     enterEventId: "necropolis_gate",
+    discoveryExperience: 35,
   },
   {
     id: "swamp_location",
@@ -168,6 +178,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "swamp",
     type: "danger_point",
     unlocked: true,
+    discoveryExperience: 25,
   },
   {
     id: "waterfall_location",
@@ -179,6 +190,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "waterfall",
     type: "location",
     unlocked: true,
+    discoveryExperience: 15,
   },
   {
     id: "volcanic_lava_location",
@@ -190,6 +202,7 @@ export const worldMapNodes: MapNode[] = [
     iconType: "volcanic_lava",
     type: "danger_point",
     unlocked: true,
+    discoveryExperience: 35,
   },
 ];
 
