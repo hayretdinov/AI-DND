@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { isBlankDialogueMessage, shouldSubmitDialogueKey } from "../dialogueInputUtils";
 import type { SceneDialogueMessage } from "../SceneDialoguePanel";
 import { MobileBottomNavigation, type MobileNavigationSection } from "./MobileBottomNavigation";
+import type { MobilePlayerResource } from "./mobileEventResources";
 import "./mobile-event.css";
 
 export type MobileQuickReply = {
@@ -54,6 +55,9 @@ type MobileEventLabels = {
   events: string;
   noEvents: string;
   voiceUnavailable: string;
+  health: string;
+  mana: string;
+  stamina: string;
 };
 
 type MobileEventLayoutProps = {
@@ -84,6 +88,7 @@ type MobileEventLayoutProps = {
   gold: number;
   weight: string;
   maxWeight: string;
+  playerResources: MobilePlayerResource[];
   statusContent?: ReactNode;
   actionContent?: ReactNode;
   sceneContent?: ReactNode;
@@ -124,6 +129,7 @@ export function MobileEventLayout({
   gold,
   weight,
   maxWeight,
+  playerResources,
   statusContent,
   actionContent,
   sceneContent,
@@ -291,6 +297,27 @@ export function MobileEventLayout({
           <span aria-label={labels.gold}>G {gold}</span><span aria-label={labels.weight}>W {weight}/{maxWeight}</span>
         </div>
       </header>
+
+      <section className="mobile-player-resources" aria-label={`${labels.health}, ${labels.mana}, ${labels.stamina}`}>
+        {playerResources.map((resource) => {
+          const label = resource.id === "health"
+            ? labels.health
+            : resource.id === "mana"
+              ? labels.mana
+              : labels.stamina;
+          const icon = resource.id === "health" ? "H" : resource.id === "mana" ? "M" : "S";
+
+          return (
+            <div className={`mobile-player-resource mobile-player-resource--${resource.id}`} key={resource.id}>
+              <span className="mobile-player-resource__icon" aria-hidden="true">{icon}</span>
+              <span className="mobile-player-resource__body">
+                <span><small>{label}</small><strong>{resource.current}/{resource.max}</strong></span>
+                <i><b style={{ width: `${resource.percent}%` }} /></i>
+              </span>
+            </div>
+          );
+        })}
+      </section>
 
       <main className="mobile-event-scroll">
         <div className="mobile-npc-visual">

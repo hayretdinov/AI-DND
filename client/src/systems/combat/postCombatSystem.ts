@@ -25,6 +25,20 @@ export type LootTransferResult = {
   blockedItems: InventoryItem[];
 };
 
+export type PostCombatBodyAction = "loot" | "butcher" | "skin";
+
+export type PostCombatActionOption = {
+  id: PostCombatBodyAction;
+  disabled: boolean;
+  completed: boolean;
+  requiresSkill: boolean;
+};
+
+export type PostCombatActionResult = LootTransferResult & {
+  action: PostCombatBodyAction;
+  completed: boolean;
+};
+
 export type PlayerDefeatOutcome = "robbed" | "executed" | "left";
 
 export type PlayerDefeatResolution = {
@@ -101,15 +115,28 @@ const LOOT_BY_ROLE: Partial<Record<NpcRole, Array<{ itemId: string; quantity?: n
   guard: [{ itemId: "wooden_club" }, { itemId: "cracked_wooden_shield" }],
   bandit: [{ itemId: "old_dagger" }, { itemId: "stale_bread" }],
   blacksmith: [{ itemId: "iron_mace" }, { itemId: "leather_scrap" }],
-  monster: [{ itemId: "monster_meat" }],
+  monster: [],
 };
 
-const EXTRA_BUTCHERING_LOOT_BY_TEMPLATE_ID: Record<string, Array<{ itemId: string; quantity?: number }>> = {
-  forest_beast_01: [{ itemId: "rat_claws" }],
-  fire_serpent_01: [{ itemId: "snake_scales" }],
-  swamp_serpent: [{ itemId: "snake_scales" }],
-  swamp_giant_toad: [{ itemId: "monster_meat" }],
-  swamp_water_horror: [{ itemId: "leather_scrap" }],
+const BODY_ACTION_LOOT_BY_TEMPLATE_ID: Record<string, Partial<Record<"butcher" | "skin", Array<{ itemId: string; quantity?: number }>>>> = {
+  forest_beast_01: {
+    butcher: [{ itemId: "monster_meat", quantity: 2 }, { itemId: "rat_claws" }],
+  },
+  fire_serpent_01: {
+    butcher: [{ itemId: "monster_meat" }],
+    skin: [{ itemId: "snake_scales", quantity: 2 }],
+  },
+  swamp_serpent: {
+    butcher: [{ itemId: "monster_meat", quantity: 2 }],
+    skin: [{ itemId: "snake_scales", quantity: 3 }],
+  },
+  swamp_giant_toad: {
+    butcher: [{ itemId: "monster_meat", quantity: 3 }],
+  },
+  swamp_water_horror: {
+    butcher: [{ itemId: "monster_meat", quantity: 2 }],
+    skin: [{ itemId: "leather_scrap", quantity: 2 }],
+  },
 };
 
 function nowIso() {
@@ -232,18 +259,54 @@ export function rememberPlayerDefeated(npc: NpcInstance): NpcInstance {
   };
 }
 
-function hasButcheringSkill(save?: GameSave) {
+function hasBodyActionSkill(save: GameSave | undefined, action: "butcher" | "skin") {
   const player = save?.player as PlayerCharacter & {
     skills?: Record<string, boolean | undefined>;
     survival?: Record<string, boolean | undefined>;
   };
 
-  return Boolean(
-    player?.skills?.butchering ||
-      player?.skills?.skinning ||
-      player?.survival?.butchering ||
-      player?.survival?.skinning,
-  );
+  if (player?.origin === "hunter") {
+    return true;
+  }
+
+  return action === "butcher"
+    ? Boolean(player?.skills?.butchering || player?.survival?.butchering)
+    : Boolean(player?.skills?.skinning || player?.survival?.skinning);
+}
+
+function getBodyActionLoot(npc: NpcInstance, action: "butcher" | "skin") {
+  const configured = BODY_ACTION_LOOT_BY_TEMPLATE_ID[npc.templateId]?.[action];
+
+  if (configured) {
+    return configured;
+  }
+
+  const templateId = npc.templateId.toLowerCase();
+
+  if (templateId.includes("skeleton") || templateId.includes("undead")) {
+    return [];
+  }
+
+  if (action === "butcher") {
+    if (templateId.includes("wolf")) {
+      return [{ itemId: "monster_meat", quantity: 2 }, { itemId: "wolf_fang", quantity: 1 }];
+    }
+    if (templateId.includes("rat")) {
+      return [{ itemId: "monster_meat", quantity: 1 }, { itemId: "rat_claws", quantity: 1 }];
+    }
+    if (templateId.includes("frog") || templateId.includes("toad")) {
+      return [{ itemId: "monster_meat", quantity: 2 }];
+    }
+    if (templateId.includes("snake") || templateId.includes("serpent")) {
+      return [{ itemId: "monster_meat", quantity: 1 }];
+    }
+  }
+
+  if (action === "skin" && (templateId.includes("wolf") || templateId.includes("beast"))) {
+    return [{ itemId: "leather_scrap", quantity: 2 }];
+  }
+
+  return [];
 }
 
 export function classifyPostCombatIntent(text: string): PostCombatIntent {
@@ -338,11 +401,7 @@ function createLootItem(npc: NpcInstance, itemId: string, quantity = 1): Invento
 
 export function generateNpcLoot(npc: NpcInstance, save?: GameSave): NpcLootState {
   const configuredLoot = LOOT_BY_TEMPLATE_ID[npc.templateId] ?? LOOT_BY_ROLE[npc.role] ?? [];
-  const butcheringLoot = npc.role === "monster" && hasButcheringSkill(save)
-    ? EXTRA_BUTCHERING_LOOT_BY_TEMPLATE_ID[npc.templateId] ?? []
-    : [];
   const items = configuredLoot
-    .concat(butcheringLoot)
     .map((entry) => createLootItem(npc, entry.itemId, entry.quantity ?? 1))
     .filter((item): item is InventoryItem => Boolean(item));
 
@@ -352,6 +411,106 @@ export function generateNpcLoot(npc: NpcInstance, save?: GameSave): NpcLootState
     items,
     gold: npc.templateId === "bandit_erik" || npc.templateId === "road_bandit_01" ? 3 : 0,
     generatedAt: nowIso(),
+    completedBodyActions: [],
+  };
+}
+
+export function getPostCombatActions(npc: NpcInstance, save?: GameSave): PostCombatActionOption[] {
+  if (npc.role !== "monster" || getPostCombatPhaseForNpc(npc) !== "monsterDefeated") {
+    return [{ id: "loot", disabled: false, completed: false, requiresSkill: false }];
+  }
+
+  const completedActions = new Set(npc.loot?.completedBodyActions ?? []);
+  const bodyActions = (["butcher", "skin"] as const)
+    .filter((action) => getBodyActionLoot(npc, action).length > 0)
+    .map((action): PostCombatActionOption => {
+      const completed = completedActions.has(action);
+      const hasSkill = hasBodyActionSkill(save, action);
+      return {
+        id: action,
+        completed,
+        requiresSkill: !hasSkill,
+        disabled: completed || !hasSkill,
+      };
+    });
+
+  return [
+    { id: "loot", disabled: false, completed: Boolean(npc.loot?.searched), requiresSkill: false },
+    ...bodyActions,
+  ];
+}
+
+export function executePostCombatAction(
+  save: GameSave,
+  npc: NpcInstance,
+  action: PostCombatBodyAction,
+): PostCombatActionResult {
+  if (action === "loot") {
+    const nextNpc = ensureNpcLoot(npc, true, save);
+    return {
+      action,
+      completed: true,
+      save: upsertNpc(save, nextNpc),
+      npcInstance: nextNpc,
+      transferredItems: [],
+      blockedItems: [],
+    };
+  }
+
+  const availableAction = getPostCombatActions(npc, save).find((candidate) => candidate.id === action);
+  if (!availableAction || availableAction.disabled) {
+    return {
+      action,
+      completed: Boolean(availableAction?.completed),
+      save,
+      npcInstance: npc,
+      transferredItems: [],
+      blockedItems: [],
+    };
+  }
+
+  const generatedItems = getBodyActionLoot(npc, action)
+    .map((entry) => createLootItem(npc, entry.itemId, entry.quantity ?? 1))
+    .filter((item): item is InventoryItem => Boolean(item));
+  const inventory = save.inventory ?? createDefaultInventoryState();
+  const generatedWeight = getInventoryWeight(generatedItems);
+
+  if (getInventoryWeight(inventory.items) + generatedWeight > getPlayerCarryCapacity(save.player, inventory)) {
+    return {
+      action,
+      completed: false,
+      save,
+      npcInstance: npc,
+      transferredItems: [],
+      blockedItems: generatedItems,
+    };
+  }
+
+  let workingSave = save;
+  const transferredItems: InventoryItem[] = [];
+
+  for (const item of generatedItems) {
+    workingSave = addLootToPlayerInventory(workingSave, item);
+    transferredItems.push(item);
+  }
+
+  const npcWithLoot = ensureNpcLoot(npc, npc.loot?.searched ?? false, workingSave);
+  const completedBodyActions = Array.from(new Set([...(npcWithLoot.loot?.completedBodyActions ?? []), action]));
+  const nextNpc = {
+    ...npcWithLoot,
+    loot: {
+      ...(npcWithLoot.loot ?? generateNpcLoot(npcWithLoot, workingSave)),
+      completedBodyActions,
+    },
+  };
+
+  return {
+    action,
+    completed: true,
+    save: upsertNpc(workingSave, nextNpc),
+    npcInstance: nextNpc,
+    transferredItems,
+    blockedItems: [],
   };
 }
 
@@ -511,6 +670,25 @@ export function takeAllNpcLoot(save: GameSave, npc: NpcInstance): LootTransferRe
     workingNpc = result.npcInstance;
     transferredItems.push(...result.transferredItems);
     blockedItems.push(...result.blockedItems);
+  }
+
+  const lootGold = Math.max(0, workingNpc.loot?.gold ?? 0);
+  if (lootGold > 0) {
+    const inventory = workingSave.inventory ?? createDefaultInventoryState();
+    workingNpc = {
+      ...workingNpc,
+      loot: {
+        ...(workingNpc.loot ?? generateNpcLoot(workingNpc, workingSave)),
+        gold: 0,
+      },
+    };
+    workingSave = upsertNpc({
+      ...workingSave,
+      inventory: {
+        ...inventory,
+        gold: inventory.gold + lootGold,
+      },
+    }, workingNpc);
   }
 
   return {

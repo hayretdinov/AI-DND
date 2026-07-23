@@ -377,6 +377,9 @@ function normalizeNpcInstance(instanceId: string, value: unknown): NpcInstance {
           : [],
         gold: Number.isFinite(rawLoot.gold) ? Math.max(0, Math.floor(Number(rawLoot.gold))) : 0,
         generatedAt: typeof rawLoot.generatedAt === "string" ? rawLoot.generatedAt : undefined,
+        completedBodyActions: Array.isArray(rawLoot.completedBodyActions)
+          ? rawLoot.completedBodyActions.filter((action): action is "butcher" | "skin" => action === "butcher" || action === "skin")
+          : [],
       }
     : undefined;
 

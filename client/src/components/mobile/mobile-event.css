@@ -2,7 +2,7 @@
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: 100%;
   height: var(--mobile-event-height, 100dvh);
   min-height: 100dvh;
@@ -12,6 +12,85 @@
   background: #080706;
   transform: translateY(var(--mobile-event-offset-top, 0));
   overscroll-behavior: none;
+}
+
+.mobile-player-resources {
+  z-index: 19;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(188, 142, 77, 0.38);
+  background: rgba(9, 8, 7, 0.92);
+}
+
+.mobile-player-resource {
+  display: flex;
+  min-height: 36px;
+  gap: 5px;
+  align-items: center;
+}
+
+.mobile-player-resource__icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border: 1px solid rgba(221, 178, 103, 0.55);
+  border-radius: 50%;
+  color: #f3d8a7;
+  font: 700 0.67rem/1 Georgia, "Times New Roman", serif;
+}
+
+.mobile-player-resource__body {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+}
+
+.mobile-player-resource__body > span {
+  display: flex;
+  gap: 3px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.67rem;
+  white-space: nowrap;
+}
+
+.mobile-player-resource__body small {
+  overflow: hidden;
+  color: rgba(240, 220, 181, 0.78);
+  font-size: 0.6rem;
+  text-overflow: ellipsis;
+}
+
+.mobile-player-resource__body strong {
+  color: #f7e2bc;
+  font-size: 0.68rem;
+}
+
+.mobile-player-resource__body i {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(210, 173, 112, 0.35);
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.mobile-player-resource__body b {
+  display: block;
+  height: 100%;
+  background: #a4372c;
+  transition: width 220ms ease;
+}
+
+.mobile-player-resource--mana .mobile-player-resource__body b {
+  background: #356eaa;
+}
+
+.mobile-player-resource--stamina .mobile-player-resource__body b {
+  background: #a6803e;
 }
 
 .mobile-event-scene *,
@@ -532,6 +611,86 @@
   transform: none;
 }
 
+.mobile-enter-city-button {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.mobile-post-combat-result {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-post-combat-result > header {
+  display: grid;
+  gap: 3px;
+  text-align: center;
+}
+
+.mobile-post-combat-result > header strong {
+  color: #f1d49c;
+  font: 700 1.15rem/1.2 Georgia, "Times New Roman", serif;
+}
+
+.mobile-post-combat-result > header span {
+  color: rgba(239, 218, 181, 0.78);
+  font-size: 0.82rem;
+}
+
+.mobile-post-combat-result__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mobile-post-combat-result__actions button,
+.mobile-post-combat-result__continue {
+  min-height: 46px;
+  border: 1px solid rgba(190, 143, 76, 0.56);
+  color: #f0d6a6;
+  background: rgba(26, 21, 15, 0.92);
+  touch-action: manipulation;
+}
+
+.mobile-post-combat-result__actions button {
+  display: grid;
+  gap: 2px;
+  place-items: center;
+  padding: 5px 3px;
+}
+
+.mobile-post-combat-result__actions button:disabled {
+  opacity: 0.48;
+}
+
+.mobile-post-combat-result__actions small {
+  color: #d3a45e;
+  font-size: 0.62rem;
+  line-height: 1.05;
+}
+
+.mobile-post-combat-result__received {
+  padding: 8px;
+  border: 1px solid rgba(149, 117, 70, 0.4);
+  background: rgba(5, 5, 4, 0.46);
+}
+
+.mobile-post-combat-result__received strong {
+  color: #d7b06c;
+}
+
+.mobile-post-combat-result__received ul {
+  display: grid;
+  gap: 3px;
+  margin: 5px 0 0;
+  padding-left: 18px;
+  font-size: 0.78rem;
+}
+
+.mobile-post-combat-result__continue {
+  width: 100%;
+}
+
 @media (orientation: landscape) and (max-height: 500px) {
   .mobile-npc-visual {
     height: 88px;
@@ -552,7 +711,7 @@
 
 @media (max-width: 768px) {
   .mobile-event-scene {
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 
@@ -840,6 +999,21 @@
 }
 
 @media (max-width: 340px) {
+  .mobile-player-resources {
+    gap: 3px;
+    padding-inline: 5px;
+  }
+
+  .mobile-player-resource__icon {
+    width: 19px;
+    height: 19px;
+    flex-basis: 19px;
+  }
+
+  .mobile-player-resource__body small {
+    display: none;
+  }
+
   .mobile-npc-quick-actions {
     width: 48px;
   }

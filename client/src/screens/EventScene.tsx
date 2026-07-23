@@ -7,6 +7,7 @@ import { SceneDialoguePanel, type SceneDialogueMessage } from "../components/Sce
 import { TopStatusBar, type TopStatusIndicatorData } from "../components/TopStatusHud";
 import { MobileEventLayout, type MobileQuickAction, type MobileQuickReply } from "../components/mobile/MobileEventLayout";
 import type { MobileNavigationSection } from "../components/mobile/MobileBottomNavigation";
+import { getMobilePlayerResources } from "../components/mobile/mobileEventResources";
 import {
   appendDialogueMessages,
   appendAnarielMessage,
@@ -95,8 +96,10 @@ import {
 } from "../systems/combat/combatSystem";
 import {
   classifyPostCombatIntent,
+  executePostCombatAction,
   ensureNpcLoot,
   getNpcLifeState,
+  getPostCombatActions,
   getPostCombatPhaseForNpc,
   isNpcDialogueAllowedAfterCombat,
   isPostCombatNpcStatus,
@@ -110,6 +113,7 @@ import { classifyChatMessage } from "../systems/intent/chatIntentRouter";
 import { parsePlayerIntent, type PlayerIntent } from "../systems/intent/playerIntentSystem";
 import { getSocialCheckType, resolveSocialCheck } from "../systems/npc/socialCheckSystem";
 import { getCombatInputPolicy } from "../systems/combat/combatInputPolicy";
+import { canEnterGrantedGate } from "../systems/navigation/gateAccessSystem";
 import {
   formatMagicResolutionMessage,
   parseMagicFormula,
@@ -1081,10 +1085,13 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const [tradeMode, setTradeMode] = useState<TradeMode>("buy");
   const [openGuideId, setOpenGuideId] = useState<ContextGuideId | null>(null);
   const [isNpcLootPanelOpen, setIsNpcLootPanelOpen] = useState(false);
+  const [isEnteringCity, setIsEnteringCity] = useState(false);
+  const [postCombatReceivedLabels, setPostCombatReceivedLabels] = useState<string[]>([]);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
   );
   const hasRequestedInitialIntroGreeting = useRef(false);
+  const enterCityLockRef = useRef(false);
   const loadedEventScopeKey = getEventScopeKey(loadedSave);
   const activeEventScopeRef = useRef(loadedEventScopeKey);
   activeEventScopeRef.current = loadedEventScopeKey;
@@ -1119,7 +1126,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const currentCityAccessStatus = dynamicCityId
     ? currentChatSave?.cityAccess?.[dynamicCityId]?.status
     : undefined;
-  const canEnterCity = Boolean(isGateScene && dynamicCityId && currentCityAccessStatus === "allowed");
+  const canEnterCity = canEnterGrantedGate(currentChatSave, activeNpc?.role, dynamicEvent?.type, dynamicCityId);
   const merchantState = isMerchantScene && activeNpc ? getMerchantState(currentChatSave, activeNpc.id) : null;
   const trainerStatus = activeNpc ? getTrainerStatus(currentChatSave, activeNpc.id) : { trainer: undefined, nextTier: undefined, learnedTiers: [], cost: undefined };
   const isBlacksmithScene = dynamicEvent?.type === "npc" && activeNpc?.role === "blacksmith";
@@ -1194,6 +1201,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
   const playerGold = currentChatSave?.inventory?.gold ?? 0;
   const playerWeight = getInventoryWeight(playerInventoryItems);
   const playerMaxWeight = currentChatSave?.inventory?.maxCarryWeight ?? 70;
+  const mobilePlayerResources = getMobilePlayerResources(currentChatSave?.player);
   const equippedItemIds = new Set(Object.values(currentChatSave?.inventory?.equipment ?? {}).filter(Boolean));
   const topStatusIndicators = getTopStatusIndicators(currentChatSave, npcState, activeNpc ?? null);
   const combatThoughtHints = getCombatThoughtHints(currentChatSave, npcState);
@@ -1227,6 +1235,9 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     hasRequestedInitialIntroGreeting.current = false;
     setOpenGuideId(null);
     setIsNpcLootPanelOpen(false);
+    setPostCombatReceivedLabels([]);
+    setIsEnteringCity(false);
+    enterCityLockRef.current = false;
     setNpcChatInput("");
     setAnarielChatInput("");
     setIsNpcThinking(false);
@@ -1384,7 +1395,8 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
             <span>{activeNpc ? t(activeNpc.nameKey) : t("sceneDialogue.npc")}</span>
           </div>
           <div className="post-combat-loot-panel__actions">
-            <button className="merchant-confirm-button" type="button" onClick={handleTakeAllNpcLoot} disabled={loot.items.length === 0}>
+            {loot.gold > 0 ? <span>{formatTemplate("postCombat.loot.gold", { amount: loot.gold })}</span> : null}
+            <button className="merchant-confirm-button" type="button" onClick={handleTakeAllNpcLoot} disabled={loot.items.length === 0 && loot.gold <= 0}>
               {t("postCombat.loot.takeAll")}
             </button>
             <button className="merchant-refuse-button" type="button" onClick={() => setIsNpcLootPanelOpen(false)}>
@@ -1708,9 +1720,16 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     const sourceSave = loadGame() ?? currentChatSave;
     const cityId = dynamicCityId;
 
-    if (!sourceSave || !cityId) {
+    if (
+      !sourceSave ||
+      !cityId ||
+      enterCityLockRef.current ||
+      sourceSave.cityAccess?.[cityId]?.status !== "allowed"
+    ) {
       return;
     }
+    enterCityLockRef.current = true;
+    setIsEnteringCity(true);
     const cityDefinition = cityMapDefinitions[cityId];
 
     saveGame({
@@ -1815,6 +1834,58 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         ? t("postCombat.loot.someTooHeavy")
         : formatTemplate("postCombat.loot.takenAll", { count: result.transferredItems.length }),
     );
+  };
+
+  const handleMobilePostCombatAction = (action: "loot" | "butcher" | "skin") => {
+    const sourceSave = loadGame() ?? currentChatSave;
+    const sourceNpc = npcState?.instanceId
+      ? sourceSave?.npcs?.instances[npcState.instanceId] ?? npcState
+      : npcState;
+
+    if (!sourceSave || !sourceNpc) {
+      return;
+    }
+
+    const result = executePostCombatAction(sourceSave, sourceNpc, action);
+    const receivedLabels = result.transferredItems.map((item) => `${getItemLabel(item)} x${item.quantity}`);
+    const actionMessage = action === "loot"
+      ? t("postCombat.loot.opened")
+      : result.blockedItems.length > 0
+        ? t("postCombat.loot.tooHeavy")
+        : receivedLabels.length > 0
+          ? formatTemplate("mobile.postCombat.receivedItems", { items: receivedLabels.join(", ") })
+          : t("postCombat.loot.empty");
+    const journalNpc = appendNpcGameMasterMessages(
+      result.npcInstance,
+      t(`mobile.postCombat.${action}` as TranslationKey),
+      actionMessage,
+    );
+    const nextSave: GameSave = {
+      ...result.save,
+      npcs: {
+        ...(result.save.npcs ?? { instances: {} }),
+        instances: {
+          ...(result.save.npcs?.instances ?? {}),
+          [journalNpc.instanceId]: journalNpc,
+        },
+      },
+    };
+    saveGame(nextSave);
+    setChatSave(nextSave);
+
+    if (action === "loot") {
+      setIsNpcLootPanelOpen(true);
+      setNpcChatNotice(actionMessage);
+      return;
+    }
+
+    if (result.blockedItems.length > 0) {
+      setNpcChatNotice(actionMessage);
+      return;
+    }
+
+    setPostCombatReceivedLabels(receivedLabels);
+    setNpcChatNotice(actionMessage);
   };
 
   const handlePostCombatMessage = (playerText: string) => {
@@ -3175,6 +3246,9 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     events: t("mobile.events"),
     noEvents: t("mobile.noEvents"),
     voiceUnavailable: t("mobile.voiceUnavailable"),
+    health: t("mobile.health"),
+    mana: t("mobile.mana"),
+    stamina: t("mobile.stamina"),
   };
 
   const mobileNpcActions = activeNpc ? (
@@ -3191,6 +3265,11 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
           }}
         >
           {t("postCombat.leaveButton")}
+        </button>
+      ) : null}
+      {canEnterCity ? (
+        <button className="merchant-confirm-button mobile-enter-city-button" type="button" onClick={handleEnterCity} disabled={isEnteringCity}>
+          {t(isEnteringCity ? "mobile.entering" : "mobile.enter")}
         </button>
       ) : null}
       {isPlayerDead ? (
@@ -3279,6 +3358,41 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     </section>
   ) : null;
 
+  const mobilePostCombatResult = activeNpc?.role === "monster"
+    && npcState
+    && getPostCombatPhaseForNpc(npcState) === "monsterDefeated" ? (
+      <section className="mobile-post-combat-result" aria-label={t("mobile.postCombat.victory")}>
+        <header>
+          <strong>{t("mobile.postCombat.victory")}</strong>
+          <span>{formatTemplate("mobile.postCombat.defeated", { name: t(activeNpc.nameKey) })}</span>
+        </header>
+        <div className="mobile-post-combat-result__actions">
+          {getPostCombatActions(npcState, currentChatSave ?? undefined).map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              disabled={action.disabled}
+              onClick={() => handleMobilePostCombatAction(action.id)}
+              title={action.requiresSkill ? t("mobile.postCombat.needSkill") : undefined}
+            >
+              <span>{t(`mobile.postCombat.${action.id}` as TranslationKey)}</span>
+              {action.completed ? <small>{t("mobile.postCombat.completed")}</small> : null}
+              {action.requiresSkill ? <small>{t("mobile.postCombat.needSkill")}</small> : null}
+            </button>
+          ))}
+        </div>
+        {postCombatReceivedLabels.length > 0 ? (
+          <div className="mobile-post-combat-result__received">
+            <strong>{t("mobile.postCombat.received")}</strong>
+            <ul>{postCombatReceivedLabels.map((item) => <li key={item}>{item}</li>)}</ul>
+          </div>
+        ) : null}
+        <button className="merchant-refuse-button mobile-post-combat-result__continue" type="button" onClick={returnToWorldMap}>
+          {t("mobile.postCombat.continue")}
+        </button>
+      </section>
+    ) : null;
+
   if (isMobileViewport && dynamicEvent?.type === "necropolis") {
     return (
       <MobileEventLayout
@@ -3301,6 +3415,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         gold={playerGold}
         weight={playerWeight.toFixed(1)}
         maxWeight={playerMaxWeight.toFixed(1)}
+        playerResources={mobilePlayerResources}
         quickActions={[{ id: "leave", label: t("mobile.quickLeaveAction"), icon: "<", onSelect: returnToWorldMap }]}
         onNavigate={onMobileNavigate}
         onOpenMenu={onOpenSettings}
@@ -3345,6 +3460,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
     ];
     const mobileLootContent = renderNpcLootPanel();
     const hasMobileNpcActions = canLeaveCurrentDefeatEncounter
+      || canEnterCity
       || isPlayerDead
       || (isMerchantScene && merchantCanConfirmDeal)
       || shouldShowTrainerActions
@@ -3386,8 +3502,11 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         gold={playerGold}
         weight={playerWeight.toFixed(1)}
         maxWeight={playerMaxWeight.toFixed(1)}
+        playerResources={mobilePlayerResources}
         statusContent={npcState?.combat ? <p>{formatHealthStatus(t(activeNpc.nameKey), npcState.combat.currentHealth, npcState.combat.maxHealth)}</p> : null}
-        sceneContent={mobileMerchantContent || mobileLootContent ? <>{mobileMerchantContent}{mobileLootContent}</> : null}
+        sceneContent={mobileMerchantContent || mobilePostCombatResult || mobileLootContent
+          ? <>{mobileMerchantContent}{mobilePostCombatResult}{mobileLootContent}</>
+          : null}
         actionContent={hasMobileNpcActions ? mobileNpcActions : null}
         onNavigate={onMobileNavigate}
         onOpenMenu={onOpenSettings}
@@ -3443,6 +3562,7 @@ export function EventScene({ onBackToMenu, onOpenCityMap, onOpenWorldMap, onOpen
         gold={playerGold}
         weight={playerWeight.toFixed(1)}
         maxWeight={playerMaxWeight.toFixed(1)}
+        playerResources={mobilePlayerResources}
         statusContent={<p>{formatHealthStatus(t("health.player"), currentChatSave?.player.combat?.currentHealth, currentChatSave?.player.combat?.maxHealth)}</p>}
         onNavigate={onMobileNavigate}
         onOpenMenu={onOpenSettings}

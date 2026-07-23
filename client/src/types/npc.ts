@@ -102,6 +102,7 @@ export type NpcLootState = {
   items: InventoryItem[];
   gold: number;
   generatedAt?: string;
+  completedBodyActions?: Array<"butcher" | "skin">;
 };
 
 export type NpcInstance = NpcRuntimeState & {
